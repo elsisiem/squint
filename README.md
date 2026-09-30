@@ -40,7 +40,7 @@ Tools: `squint_ask`, `squint_wait`, `squint_cancel`. Agent-readable docs: [`/llm
 - Links are unguessable, expire (default 15 min) and cap retries. Per-IP rate limits. Webhooks: HTTPS, public hosts only, no redirects.
 
 ## Stack
-Cloudflare Workers + Hono + D1 (state only) + Cron. Anthropic Claude (`claude-haiku-4-5`) for vision. No storage bucket, no SDKs. Brainbase is used for the hosted-agent demo (`npm run brainbase`).
+Cloudflare Workers + Hono + D1 (state only) + Cron. Anthropic Claude (`claude-haiku-4-5`) for vision. No storage bucket, no SDKs. Brainbase runs the hosted-agent demo (`npm run brainbase`): a Brainbase agent is given only the `/llms.txt` URL, creates the ask itself, waits on it, and reports the typed result.
 
 ## Dev
 ```bash

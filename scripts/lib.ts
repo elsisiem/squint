@@ -25,10 +25,24 @@ export async function threadStatus(id: string): Promise<string> {
   return ((await (await fetch(`${API}/threads/${id}`, { headers: H })).json()) as any).status;
 }
 
-/** All assistant messages so far, as plain text. */
+/** Everything worth showing so far: assistant text, the shell commands it runs, and any human link a tool returned. */
 export async function assistantMessages(id: string): Promise<string[]> {
   const msgs: any = await (await fetch(`${API}/threads/${id}/messages`, { headers: H })).json();
-  return (msgs.items || [])
-    .filter((m: any) => m.role === "assistant")
-    .map((m: any) => (typeof m.content === "string" ? m.content : JSON.stringify(m.content)));
+  const out: string[] = [];
+  const linked = new Set<string>();
+  for (const m of msgs.items || []) {
+    if (m.role === "assistant") {
+      if (typeof m.content === "string" && m.content.trim()) out.push(m.content);
+      for (const c of m.tool_calls || []) {
+        try {
+          const cmd: string = JSON.parse(c.function.arguments).command ?? "";
+          out.push("$ " + cmd.slice(0, 300));
+          // tool results are not exposed by the API, but the agent's poll command contains the ask id
+          const ask = cmd.match(/\/v1\/asks\/([A-Za-z0-9]+)\?wait/)?.[1];
+          if (ask && !linked.has(ask)) { linked.add(ask); out.push(`OPEN THIS ON YOUR PHONE: ${BASE}/s/${ask}`); }
+        } catch {}
+      }
+    }
+  }
+  return out;
 }
