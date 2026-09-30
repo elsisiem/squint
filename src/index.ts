@@ -108,9 +108,11 @@ app.post("/v1/public/asks/:id/submit", async (c) => {
   const id = c.req.param("id");
   if (!idOk(id)) return err(c, 404, "not_found", "Unknown ask.");
   const ih = await ipKey(clientIp(c), c.env.TOKEN_SECRET);
-  if ((await overLimit(c.env, `sub:ask:${id}`, 60, HOUR)) || (await overLimit(c.env, `sub:ip:${ih}`, 200, HOUR))) {
-    return err(c, 429, "rate_limited", "Too many attempts. Please wait a bit and try again.");
-  }
+  // IP first (bounded writes), then a read-only existence check, so junk ids never create rate_limits rows.
+  const tooMany = () => err(c, 429, "rate_limited", "Too many attempts. Please wait a bit and try again.");
+  if (await overLimit(c.env, `sub:ip:${ih}`, 200, HOUR)) return tooMany();
+  if (!(await askExists(c.env, id))) return err(c, 404, "not_found", "Unknown ask.");
+  if (await overLimit(c.env, `sub:ask:${id}`, 60, HOUR)) return tooMany();
   const b = await readJson(c);
   if (!b.ok) return b.res;
   const r = await submitAttempt(c.env, id, b.body, (p) => c.executionCtx.waitUntil(p));
@@ -155,11 +157,8 @@ app.get("/llms.txt", asset("/llms.txt", "text/plain; charset=utf-8"));
 app.get("/agents.md", asset("/llms.txt", "text/markdown; charset=utf-8"));
 app.get("/openapi.json", (c) => c.json(openapi, 200, { "cache-control": "public, max-age=300" }));
 
-app.all("/mcp", async (c) => {
-  const ip = clientIp(c);
-  if (await overLimit(c.env, `mcp:${await ipKey(ip, c.env.TOKEN_SECRET)}`, 120, HOUR)) return err(c, 429, "rate_limited", "Too many MCP calls (120/hour in beta).");
-  return handleMcp(c.req.raw, c.env, ip);
-});
+// Rate limiting lives inside handleMcp (per tools/call, answered as JSON-RPC, not a bare REST 429).
+app.all("/mcp", (c) => handleMcp(c.req.raw, c.env, clientIp(c)));
 
 // Everything else: static assets (landing page, svgs).
 app.all("*", (c) => c.env.ASSETS.fetch(c.req.raw));

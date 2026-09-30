@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { agentSawTokens, imageTokens, parseCreateInput, tokenAccounting } from "../src/lib/asks";
-import { coerceFields, interpretVerdict, parseExtract } from "../src/lib/vision";
+import { coerceFields, interpretVerdict, judgePhoto, parseExtract } from "../src/lib/vision";
 import { qrSvg } from "../src/lib/qr";
 
 const ok = (x: unknown) => {
@@ -55,6 +55,16 @@ describe("extract parsing and typing", () => {
       { name: "ok", type: "boolean", desc: "ok" },
     ]);
   });
+  it("accepts type aliases and optional markers", () => {
+    expect(parseExtract({ count: "integer: how many", ok: "bool", when: "datetime: printed date", serial: "string?: serial if printed", note: "optional number: x" })).toEqual([
+      { name: "count", type: "number", desc: "how many" },
+      { name: "ok", type: "boolean", desc: "ok" },
+      { name: "when", type: "date", desc: "printed date" },
+      { name: "serial", type: "string", desc: "serial if printed", optional: true },
+      { name: "note", type: "number", desc: "x", optional: true },
+    ]);
+    expect(parseExtract({ a: "number of items" })[0]).toEqual({ name: "a", type: "string", desc: "number of items" });
+  });
   it("coerces to declared types and flags unreadable fields", () => {
     const f = parseExtract({ n: "number: x", d: "date: y", b: "boolean: z", s: "string: w", m: "number: v" });
     const { fields, missing } = coerceFields(f, { n: "1,234.5", d: "2026-01-02T10:00", b: false, s: "  hi ", m: "abc" });
@@ -70,6 +80,17 @@ describe("extract parsing and typing", () => {
     expect(unread).toMatchObject({ ok: false });
     expect((unread as any).issue).toMatch(/reading/);
     expect(interpretVerdict(f, { ...good, confidence: 0.1 })).toMatchObject({ ok: false });
+  });
+  it("optional fields may be null; required booleans default to false on a confident ok", () => {
+    const good = { ok: true, issue: null, fields: {}, description: "x", confidence: 0.95, blur: false, dark: false, wrong_subject: false };
+    const f = parseExtract({ serial: "string?: serial", paid: "boolean: stamped PAID", total: "number: total" });
+    expect(interpretVerdict(f, { ...good, fields: { serial: null, paid: null, total: 23.45 } })).toMatchObject({ ok: true, fields: { serial: null, paid: false, total: 23.45 } });
+    expect(interpretVerdict(f, { ...good, confidence: 0.5, fields: { serial: null, paid: null, total: 1 } })).toMatchObject({ ok: false });
+    expect(interpretVerdict(f, { ...good, fields: { paid: true, total: null } })).toMatchObject({ ok: false });
+  });
+  it("names a missing date field helpfully", () => {
+    const j = interpretVerdict(parseExtract({ d: "date: use by" }), { ok: true, issue: null, fields: { d: "14 MAR" }, description: "x", confidence: 0.9, blur: false, dark: false, wrong_subject: false });
+    expect((j as any).issue).toMatch(/day, month and year/);
   });
   it("always gives actionable feedback on rejection", () => {
     const j = interpretVerdict([], { ok: false, issue: null, fields: {}, description: "", confidence: 0.2, blur: true, dark: false, wrong_subject: false });
@@ -108,5 +129,21 @@ describe("qr", () => {
     expect(s).toContain('xmlns="http://www.w3.org/2000/svg"');
     expect(s).toContain("<path");
     expect(s.endsWith("</svg>")).toBe(true);
+  });
+});
+
+describe("vision prompt", () => {
+  it("lets explicitly requested selfies through the safety rule", async () => {
+    let sent: any;
+    const f = vi.spyOn(globalThis, "fetch").mockImplementation(async (_u, init) => {
+      sent = JSON.parse(String((init as RequestInit).body));
+      return Response.json({ content: [{ type: "tool_use", input: { ok: true, issue: null, fields: {}, description: "a selfie", confidence: 0.9, blur: false, dark: false, wrong_subject: false } }] });
+    });
+    const j = await judgePhoto({ ANTHROPIC_API_KEY: "k", VISION_MODEL: "m" } as any, { ask: "a selfie so the team can see who is at the door", extract: [], image: "AAAA", mediaType: "image/jpeg" });
+    f.mockRestore();
+    expect(j).toMatchObject({ state: "ok", ok: true });
+    expect(sent.system).toMatch(/request itself is about a person/);
+    expect(sent.system).toMatch(/never use the safety rejection for faces/);
+    expect(sent.messages[0].content[1].text).toContain("a selfie");
   });
 });

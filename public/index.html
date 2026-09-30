@@ -7,8 +7,14 @@
 <meta name="description" content="Your agent mints a link. Your human's phone takes the picture. Claude checks it on the spot and the agent gets typed JSON, never the image.">
 <meta property="og:title" content="Squint: a camera for headless agents">
 <meta property="og:description" content="Your agent asks. A phone answers. You get JSON, not the image.">
-<meta property="og:image" content="/og.svg">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://squint.elsisi.workers.dev/">
+<meta property="og:image" content="https://squint.elsisi.workers.dev/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Squint: a camera for headless agents">
 <meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://squint.elsisi.workers.dev/og.png">
 <meta name="theme-color" content="#faf6ee">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="alternate" type="text/plain" href="/llms.txt" title="llms.txt">
@@ -26,6 +32,7 @@
   --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
 }
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 html{scroll-behavior:smooth;scroll-padding-top:70px}
 body{margin:0;background:var(--bg);color:var(--ink);font:400 17px/1.55 var(--body);-webkit-text-size-adjust:100%;overflow-x:hidden}
 a{color:inherit}
@@ -105,6 +112,7 @@ svg.squint.m-happy{animation:hop .6s ease-out}
 .chip[aria-pressed=true]{background:var(--ink);color:#fff}
 input[type=text]{width:100%;font:500 1rem var(--body);padding:10px 12px;border:2px solid var(--ink);border-radius:10px;background:#fff;color:var(--ink);margin-bottom:16px}
 pre.code{margin:0 0 16px;background:var(--ink);color:#e9e7f2;border-radius:12px;padding:14px;overflow:auto;line-height:1.5;white-space:pre}
+#json,#body{white-space:pre-wrap;overflow-wrap:anywhere}
 .k{color:#7dd3fc}.s{color:#fcd34d}.n{color:#c4b5fd}.b{color:#f9a8d4}.c{color:#8c8aa0}
 .msg{border-radius:10px;padding:10px 12px;font-size:.93rem;margin-top:12px;border:2px solid var(--bad);background:#fff1ea;color:#7c2d12}
 .note{font-size:.82rem;color:var(--mute);margin-top:10px}
@@ -461,6 +469,7 @@ const res = await fetch(`${base}/v1/asks`, {
     extract: { reading: "number: the digits on the meter" },
   }),
 });
+if (!res.ok) throw new Error(JSON.stringify(await res.json()));
 const { id, url, token } = await res.json();
 // tell your human to open `url`, however you talk to them
 
@@ -470,7 +479,8 @@ do {
     headers: { authorization: `Bearer ${token}` },
   });
   ask = await r.json();
-} while (!["done", "expired", "failed"].includes(ask.status));
+  if (!r.ok) throw new Error(JSON.stringify(ask));
+} while (ask.status === "pending" || ask.status === "opened");
 
 console.log(ask.result); // { fields: { reading: 48213 }, confidence: 0.97, ... }</code></pre>
     </div>
@@ -595,7 +605,7 @@ console.log(ask.result); // { fields: { reading: 48213 }, confidence: 0.97, ... 
     }
     const old = btn.textContent; btn.textContent = 'Copied'; setTimeout(() => { btn.textContent = old; }, 1400);
   }
-  $$('.tabpanel .copy').forEach(b => b.addEventListener('click', () => copyText($$('pre', b.parentElement).map(p => p.textContent).join('\n\n'), b)));
+  $$('.tabpanel .copy').forEach(b => b.addEventListener('click', () => copyText($('pre', b.parentElement).textContent, b)));
 
   /* ---------- live demo ---------- */
   const PRESETS = {
@@ -680,7 +690,7 @@ console.log(ask.result); // { fields: { reading: 48213 }, confidence: 0.97, ... 
     while (!r.dead) {
       const t0 = Date.now();
       let res;
-      try { res = await fetch(`/v1/asks/${encodeURIComponent(r.id)}?wait=20`, { headers: { authorization: 'Bearer ' + r.token }, signal: r.ctrl.signal }); }
+      try { res = await fetch(`/v1/asks/${encodeURIComponent(r.id)}?wait=2`, { headers: { authorization: 'Bearer ' + r.token }, signal: r.ctrl.signal }); }
       catch { if (r.dead) return; if (++fails >= 5) return lost('Lost the connection to the server.'); await sleep(1000 * fails); continue; }
       if (r.dead) return;
       if (res.status === 429) { showErr(perr, 'Polling hit the rate limit. Waiting a few seconds and trying again.'); await sleep(8000); continue; }

@@ -13,8 +13,22 @@ export async function sha256(s: string): Promise<string> {
   return [...new Uint8Array(d)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
+/** IPv6 callers rotate freely inside their /64, so bucket by its first four hextets. IPv4 (and IPv4-mapped IPv6) is kept whole. */
+export function ipBucket(ip: string): string {
+  const a = ip.trim().toLowerCase().replace(/^\[|\]$/g, "").split("%")[0];
+  if (!a.includes(":")) return a;
+  const mapped = /^(?:0{0,4}:){2,5}(?:ffff:)?(\d{1,3}(?:\.\d{1,3}){3})$/.exec(a);
+  if (mapped) return mapped[1];
+  const [head, tail] = a.split("::");
+  const h = head ? head.split(":") : [];
+  const t = tail === undefined ? [] : tail ? tail.split(":") : [];
+  const groups = tail === undefined ? h : [...h, ...Array(Math.max(0, 8 - h.length - t.length)).fill("0"), ...t];
+  if (groups.length !== 8 || !groups.every((g) => /^[0-9a-f]{1,4}$/.test(g))) return a; // not a valid address: keep it whole
+  return groups.slice(0, 4).map((g) => g.replace(/^0+(?=.)/, "")).join(":") + "::/64";
+}
+
 /** Privacy-preserving per-IP key: we never store raw IPs. */
-export const ipKey = (ip: string, secret: string) => sha256(ip + secret);
+export const ipKey = (ip: string, secret: string) => sha256(ipBucket(ip) + secret);
 
 const ID_ALPHABET = "abcdefghijkmnpqrstuvwxyz23456789"; // 32 chars, no lookalikes
 export function randomId(n = 16): string {

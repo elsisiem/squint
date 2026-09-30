@@ -25,7 +25,7 @@ export const openapi = {
           "201": { description: "Created. Keep `token`: it is shown once.", content: json(ref("CreatedAsk")) },
           "400": errResp("Validation error, or invalid_callback_url"),
           "422": errResp("sensitive_request: asks for credentials/IDs/cards are refused"),
-          "429": errResp("Rate limit (30 creates/hour/IP)"),
+          "429": errResp("Rate limit (30 successful creates/hour/IP)"),
         },
       },
     },
@@ -76,7 +76,7 @@ export const openapi = {
         properties: {
           kind: { type: "string", enum: ["photo", "location", "choice", "text"] },
           ask: { type: "string", description: "Plain-language instruction shown to the human, e.g. 'a clear photo of the water meter'" },
-          extract: { type: "object", additionalProperties: { type: "string" }, description: "photo: {field: 'type: description'}, type is string|number|boolean|date" },
+          extract: { type: "object", additionalProperties: { type: "string" }, description: "photo: {field: 'type: description'}, type is string|number|boolean|date (int/integer/float = number, bool = boolean, datetime = date as YYYY-MM-DD); no type prefix = string. Fields are required by default (unreadable -> photo rejected); mark optional with '?', e.g. 'string?: serial if printed'" },
           options: { type: "array", items: { type: "string" }, minItems: 2, maxItems: 8, description: "choice: 2-8 short labels" },
           hint: { type: "string", description: "text: placeholder" },
           ttl_seconds: { type: "integer", minimum: 60, maximum: 3600, default: 900 },

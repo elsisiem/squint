@@ -77,16 +77,19 @@ Returns the ask immediately when it reaches a final status, otherwise after 25s.
 - choice: `{"choice":"tacos","index":1}`
 - text: `{"text":"Sam Lee"}`
 
+`extract` spec: `"type: description"` where type is `string|number|boolean|date` (aliases: int/integer/float/decimal = number, bool = boolean, datetime/timestamp = date, returned as YYYY-MM-DD); a spec with no type prefix is a string description. Fields are required by default: if one can't be read the photo is rejected and the human retakes it. Mark a field optional with `?` (`"string?: serial number if printed"`) or a leading `optional`; it is then null when absent. Yes/no fields come back false when the thing is clearly not there. Dates need day, month and year printed; ambiguous numeric dates like 03/04/26 are rejected.
+
 Photo asks also carry `tokens`: `{agent_saw, raw_image_loop_would_cost, spared, note}`, an honest estimate of what receiving each photo yourself and asking for retakes would have cost.
 
 ## Errors
 
 JSON `{"error": "...", "message": "..."}`.
 
-- 400 validation (bad kind, missing `options`, bad `extract` type, ttl out of range); `invalid_callback_url` when `callback_url` is not a public https URL
+- 400 validation (bad kind, missing `options`, malformed `extract` field name or spec, ttl out of range); `invalid_callback_url` when `callback_url` is not a public https URL
 - 422 `sensitive_request`: the ask, hint or options look like a request for credentials, IDs or card data
 - 404 unknown id or wrong token
-- 429 rate limited
+- 429 rate limited (or, on /mcp, a JSON-RPC tool result with `isError` and `error: rate_limited`)
+- 503 `retryable` on the human submit: vision check unavailable or the beta hit its daily capacity
 
 ## MCP
 
@@ -98,7 +101,8 @@ Tools: `squint_ask` (kind, ask, extract, options, hint, ttl_seconds, wait_second
 
 ## Limits
 
-- 30 creates/hour/IP, 120 MCP requests/hour/IP, 300 public lookups/hour/IP
+- 30 successful creates/hour/IP (IPv6 counted per /64; rejected requests do not count), 120 MCP tool calls/hour/IP (`squint_wait` has its own 600/hour bucket; initialize, ping and tools/list are free), 300 public lookups/hour/IP, plus global hourly/daily caps for the whole beta
+- MCP batches: at most 10 messages per POST
 - Link lifetime 60s to 1h (default 15 min); finished asks are deleted after 24h
 - Photo attempts: up to `max_attempts` (default 5); the human retakes on the spot
 - Request body cap 2 MB; text answers 280 chars; 2-8 choice options

@@ -31,7 +31,7 @@
 
   <g font-family="'Bricolage Grotesque','Avenir Next','Segoe UI',system-ui,sans-serif" fill="#1c1b22">
     <text x="640" y="250" font-size="120" font-weight="800" letter-spacing="-3">Squint</text>
-    <text x="640" y="325" font-size="44" font-weight="600">A camera for headless agents.</text>
+    <text x="640" y="325" font-size="36" font-weight="600">A camera for headless agents.</text>
   </g>
   <g font-family="Inter,'Segoe UI',system-ui,sans-serif" fill="#4a4856" font-size="28">
     <text x="640" y="395">Your agent asks. A phone answers.</text>

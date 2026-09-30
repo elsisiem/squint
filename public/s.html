@@ -55,7 +55,7 @@ h1{font-size:1.45rem; line-height:1.25; margin:0; font-weight:750; overflow-wrap
 }
 .btn:active{transform:scale(.98)} .btn:disabled{opacity:.5; cursor:default}
 .btn.alt{background:var(--card); color:var(--ink); border:2px solid var(--line)}
-.btn.opt{background:var(--card); color:var(--ink); border:2px solid var(--line); justify-content:flex-start; text-align:left; font-weight:650}
+.btn.opt{background:var(--card); color:var(--ink); border:2px solid var(--line); justify-content:flex-start; text-align:start; overflow-wrap:anywhere; font-weight:650}
 .btn.opt:active,.btn.opt.sel{border-color:var(--focus)}
 .btn svg{width:24px; height:24px; flex:none}
 :focus-visible{outline:3px solid var(--focus); outline-offset:3px}
@@ -160,7 +160,7 @@ label.lbl{text-align:left; font-weight:650; font-size:.95rem}
     </svg>
   </div>
 
-  <h1 id="title"></h1>
+  <h1 id="title" dir="auto"></h1>
   <p class="msg" id="msg" role="status" aria-live="polite"></p>
   <div class="spin" id="spin" hidden aria-hidden="true"><i></i><i></i><i></i></div>
   <img id="thumb" alt="The photo you sent" hidden>
@@ -185,7 +185,7 @@ label.lbl{text-align:left; font-weight:650; font-size:.95rem}
   <!-- text -->
   <form class="panel" id="pText" hidden>
     <label class="lbl" for="txt">Your answer</label>
-    <textarea id="txt" maxlength="280" rows="4" autocomplete="off" enterkeyhint="send"></textarea>
+    <textarea id="txt" dir="auto" maxlength="280" rows="4" autocomplete="off" enterkeyhint="send"></textarea>
     <div class="count" id="cnt" aria-hidden="true">0 / 280</div>
     <button type="submit" class="btn" id="txtBtn" disabled>Send</button>
   </form>
@@ -200,7 +200,7 @@ label.lbl{text-align:left; font-weight:650; font-size:.95rem}
   </div>
 
   <div class="banner" role="note"><b aria-hidden="true">!</b><span>Never share passwords, card numbers or IDs.</span></div>
-  <p class="privacy">Photo is checked then thrown away. Your agent only receives the typed answer.</p>
+  <p class="privacy" id="privacy" hidden>Photo is checked then thrown away. Your agent only receives the typed answer.</p>
   <noscript><p class="msg bad">Squint needs JavaScript to open your camera.</p></noscript>
 </main>
 
@@ -302,7 +302,7 @@ function failedView(feedback) {
   ui({
     mood: 'squint', title: 'Too many tries',
     msg: feedback || "Squint couldn't get what it needed. Ask your agent to send a new link.", tone: 'bad',
-    thumb: $('thumb').dataset.has === '1' ? 'bad' : null, dots: true,
+    thumb: $('thumb').dataset.has === '1' ? 'bad' : null, dots: false,
   });
 }
 function loadingView() { ui({ mood: 'open', look: true, msg: 'Loading…' }); }
@@ -347,6 +347,7 @@ async function boot() {
   if (ask.status === 'expired') return expiredView();
   if (ask.status === 'done') return doneView(true);
   if (ask.status === 'failed') return failedView(ask.last_issue);
+  $('privacy').hidden = ask.kind !== 'photo';
   if (ask.kind === 'choice') buildChoices();
   if (ask.kind === 'text') $('txt').placeholder = ask.hint || '';
   activeView(attempts > 0 ? ask.last_issue : null);
@@ -474,7 +475,7 @@ function buildChoices() {
   const box = $('pChoice'); box.textContent = '';
   (ask.options || []).forEach((label, index) => {
     const b = document.createElement('button');
-    b.type = 'button'; b.className = 'btn opt'; b.textContent = label;
+    b.type = 'button'; b.className = 'btn opt'; b.dir = 'auto'; b.textContent = label;
     b.addEventListener('click', () => {
       if (busy) return;
       box.querySelectorAll('.opt').forEach((x) => x.classList.remove('sel'));

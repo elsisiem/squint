@@ -1,5 +1,6 @@
 import type { Env } from "../types";
 import { cancelAsk, createAsk, getAskView } from "./asks";
+import { HOUR, ipKey, overLimit } from "./util";
 
 // Minimal remote MCP server (streamable HTTP, JSON responses). Lets any MCP-capable agent ask its human for a photo/location/choice/text.
 
@@ -19,7 +20,7 @@ const TOOLS = [
       properties: {
         kind: { type: "string", enum: ["photo", "location", "choice", "text"], description: "photo -> typed fields + description; location -> {lat,lng,accuracy_m}; choice -> {choice,index}; text -> {text} (<=280 chars)" },
         ask: { type: "string", description: "Plain-language instruction shown to the human, e.g. 'a clear photo of the water meter'" },
-        extract: { type: "object", additionalProperties: { type: "string" }, description: "photo only. Fields to read from the image as {name: 'type: description'}, type is string|number|boolean|date. E.g. {\"reading\":\"number: the digits on the meter\"}" },
+        extract: { type: "object", additionalProperties: { type: "string" }, description: "photo only. Fields to read from the image as {name: 'type: description'}, type is string|number|boolean|date (int/integer = number, bool = boolean; no prefix = string). Fields are required by default; mark optional with '?', e.g. 'string?: serial if printed'. E.g. {\"reading\":\"number: the digits on the meter\"}" },
         options: { type: "array", items: { type: "string" }, minItems: 2, maxItems: 8, description: "choice only. 2-8 short labels" },
         hint: { type: "string", description: "text only. Placeholder shown in the input" },
         ttl_seconds: { type: "integer", minimum: 60, maximum: 3600, description: "How long the link stays valid. Default 900" },
@@ -55,6 +56,12 @@ const err = (id: any, code: number, message: string) => ({ jsonrpc: "2.0", id, e
 const text = (o: unknown, isError = false) => ({ content: [{ type: "text", text: typeof o === "string" ? o : JSON.stringify(o) }], isError });
 const secs = (v: unknown, def: number) => Math.max(0, Math.min(25, Math.floor(Number(v ?? def)) || 0));
 
+const MAX_BATCH = 10;
+const BODY_CAP = 2 * 1024 * 1024;
+// Only tools/call is metered (initialize, ping, tools/list and notifications are free). squint_wait long-polls, so it gets a higher bucket.
+const MCP_CALLS_PER_HOUR = 120;
+const MCP_WAITS_PER_HOUR = 600;
+
 const HOW_TO_WAIT = "Give `url` to your human now. Then call squint_wait {id, token} (long-polls up to 25s) until status is done, expired or failed.";
 
 async function callTool(env: Env, name: string, a: any, ip: string) {
@@ -85,7 +92,12 @@ async function callTool(env: Env, name: string, a: any, ip: string) {
 export async function handleMcp(req: Request, env: Env, ip: string): Promise<Response> {
   if (req.method === "GET") return new Response("SSE not supported; POST JSON-RPC to this endpoint.", { status: 405, headers: { allow: "POST" } });
   let msg: any;
-  try { msg = await req.json(); } catch { return Response.json(err(null, -32700, "parse error"), { status: 400 }); }
+  const tooBig = () => Response.json(err(null, -32600, "request body exceeds 2 MB"), { status: 413 });
+  if (Number(req.headers.get("content-length") ?? 0) > BODY_CAP) return tooBig();
+  const raw = await req.text();
+  if (raw.length > BODY_CAP) return tooBig();
+  try { msg = JSON.parse(raw); } catch { return Response.json(err(null, -32700, "parse error"), { status: 400 }); }
+  if (Array.isArray(msg) && msg.length > MAX_BATCH) return Response.json(err(null, -32600, `batch too large (max ${MAX_BATCH} messages)`), { status: 400 });
   const one = async (m: any) => {
     const id = m?.id;
     try {
@@ -99,7 +111,15 @@ export async function handleMcp(req: Request, env: Env, ip: string): Promise<Res
           });
         case "ping": return ok(id, {});
         case "tools/list": return ok(id, { tools: TOOLS });
-        case "tools/call": return ok(id, await callTool(env, m.params?.name, m.params?.arguments, ip));
+        case "tools/call": {
+          const wait = m.params?.name === "squint_wait";
+          const max = wait ? MCP_WAITS_PER_HOUR : MCP_CALLS_PER_HOUR;
+          const bucket = `${wait ? "mcpwait" : "mcp"}:${await ipKey(ip, env.TOKEN_SECRET)}`;
+          if (await overLimit(env, bucket, max, HOUR)) {
+            return ok(id, text({ error: "rate_limited", message: `Too many MCP ${wait ? "wait" : "tool"} calls (${max}/hour in beta). Retry in about an hour (3600 s).`, retry_after_seconds: 3600 }, true));
+          }
+          return ok(id, await callTool(env, m.params?.name, m.params?.arguments, ip));
+        }
         default:
           return id === undefined ? null : err(id, -32601, "method not found");
       }

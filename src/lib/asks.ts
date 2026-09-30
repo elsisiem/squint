@@ -25,6 +25,9 @@ interface Spec { extract?: Record<string, string>; options?: string[]; hint?: st
 
 const TERMINAL = new Set(["done", "expired", "failed"]);
 const MAX_IMAGE_BYTES = 1.5 * 1024 * 1024;
+// Global spend backstops (per-IP limits alone are bypassable with many IPs / IPv6 ranges).
+const GLOBAL_CREATES_PER_HOUR = 500;
+const GLOBAL_VISION_PER_DAY = 1500;
 
 // ---------- validation ----------
 
@@ -117,13 +120,17 @@ async function withExpiry(env: Env, r: Row): Promise<Row> {
 // ---------- agent-facing API ----------
 
 export async function createAsk(env: Env, input: unknown, ip: string): Promise<{ ok: true; ask: AskView; token: string } | Fail> {
+  // Validate first (pure, no I/O) so rejected requests do not burn the create budget.
+  const p = parseCreateInput(input);
+  if (!p.ok) return p;
+  const v = p.value;
   const ih = await ipKey(ip, env.TOKEN_SECRET);
   if (await overLimit(env, `create:${ih}`, 30, HOUR)) {
     return { ok: false, status: 429, error: "rate_limited", message: "Too many asks from this address (30/hour in beta). Try again later." };
   }
-  const p = parseCreateInput(input);
-  if (!p.ok) return p;
-  const v = p.value;
+  if (await overLimit(env, "global:create", GLOBAL_CREATES_PER_HOUR, HOUR)) {
+    return { ok: false, status: 429, error: "rate_limited", message: "Squint is at capacity right now (beta). Try again later." };
+  }
   const id = randomId(16);
   const token = randomToken();
   const t = now();
@@ -224,6 +231,9 @@ export async function submitAttempt(env: Env, id: string, raw: any, waitUntil: (
       const w = clamp(Math.round(Number(raw.width)) || 1280, 1, 8000);
       const h = clamp(Math.round(Number(raw.height)) || 960, 1, 8000);
       img = imageTokens(w, h);
+      if (await overLimit(env, `global:vision:${new Date().toISOString().slice(0, 10)}`, GLOBAL_VISION_PER_DAY, 25 * HOUR)) {
+        return { http: 503, body: out("failed", "Squint is at capacity for today. Please try again tomorrow.", r.attempts, { retryable: true }) };
+      }
       const j = await judgePhoto(env, { ask: r.ask, extract: parseExtract(spec.extract), image, mediaType: mime });
       if (j.state === "error") {
         // Infrastructure failure: do not burn an attempt, let the human retry.

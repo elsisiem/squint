@@ -4,13 +4,26 @@
 import qrcode from "qrcode-generator";
 
 const argv = process.argv.slice(2);
-const flag = (n: string) => { const i = argv.indexOf(`--${n}`); return i >= 0 ? argv[i + 1] : undefined; };
+// Accepts `--name value` and `--name=value`; a following `--flag` is not a value.
+const flag = (n: string) => {
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i];
+    if (a.startsWith(`--${n}=`)) return a.slice(n.length + 3);
+    if (a === `--${n}`) return argv[i + 1] !== undefined && !argv[i + 1].startsWith("--") ? argv[i + 1] : undefined;
+  }
+  return undefined;
+};
+const die = (msg: string): never => { console.error(`[agent] ${msg}`); process.exit(1); };
+const PROD = "https://squint.elsisi.workers.dev";
 const selftest = argv.includes("--selftest");
-const BASE = (flag("base") || process.env.BASE || "https://squint.elsisi.workers.dev").replace(/\/$/, "");
+const BASE = (flag("base") || process.env.BASE || PROD).replace(/\/$/, "");
 const kind = flag("kind") || "photo";
-const ask = flag("ask") || "a clear photo of any object";
-const extract = flag("extract") ? JSON.parse(flag("extract")!) : kind === "photo" ? { object: "string: what the main object is" } : undefined;
-const options = flag("options")?.split(",").map((s) => s.trim());
+if (!["photo", "location", "choice", "text"].includes(kind)) die(`unknown --kind "${kind}" (photo|location|choice|text)`);
+const DEFAULT_ASK: Record<string, string> = { photo: "a clear photo of any object", location: "your current location", choice: "pizza or tacos?", text: "a short answer" };
+const ask = flag("ask") || DEFAULT_ASK[kind];
+let extract: Record<string, string> | undefined;
+try { extract = flag("extract") ? JSON.parse(flag("extract")!) : kind === "photo" ? { object: "string: what the main object is" } : undefined; } catch { die("--extract must be valid JSON, e.g. '{\"k\":\"string: ...\"}'"); }
+const options = flag("options")?.split(",").map((s) => s.trim()) ?? (kind === "choice" ? ["pizza", "tacos"] : undefined);
 
 // Small generated JPEGs for --selftest: a flat grey square (should be rejected) and a red mug on a table (should pass).
 const GREY_JPEG = "/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAA0JCgsKCA0LCwsPDg0QFCEVFBISFCgdHhghMCoyMS8qLi00O0tANDhHOS0uQllCR05QVFVUMz9dY1xSYktTVFH/2wBDAQ4PDxQRFCcVFSdRNi42UVFRUVFRUVFRUVFRUVFRUVFRUVFRUVFRUVFRUVFRUVFRUVFRUVFRUVFRUVFRUVFRUVH/wAARCABgAGADASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigD/2Q==";
@@ -43,12 +56,14 @@ async function simulateHuman(id: string) {
   log(`[human] retook it -> ${r.status}${r.feedback ? ": " + r.feedback : ""}`);
 }
 
+log(`[agent] using ${BASE}`);
+if (BASE === PROD && !selftest) log("[agent] warning: this creates a real ask on the production server (use --base http://localhost:8787 for local dev)");
 const created = await api("/v1/asks", {
   method: "POST",
   headers: { "content-type": "application/json" },
-  body: JSON.stringify({ kind: selftest ? "photo" : kind, ask: selftest ? "a clear photo of any object" : ask, extract: selftest ? { object: "string: what the main object is" } : extract, options }),
-});
-if (!created.id) throw new Error(`create failed: ${created.error} ${created.message}`);
+  body: JSON.stringify({ kind: selftest ? "photo" : kind, ask: selftest ? "a clear photo of any object" : ask, extract: selftest ? { object: "string: what the main object is" } : kind === "photo" ? extract : undefined, options: selftest || kind !== "choice" ? undefined : options }),
+}).catch((e) => die(`create failed: ${e.message}`));
+if (!created.id) die(`create failed: ${created.error} ${created.message}`);
 log(`[agent] created ask ${created.id} (${created.kind}): "${created.ask}"`);
 log(`[agent] give this link to your human: ${created.url}\n`);
 const qr = qrcode(0, "L");

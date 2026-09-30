@@ -17,9 +17,29 @@ describe("sensitiveMatch", () => {
     "ssn",
     "bank login screen",
     "ID card photo",
+    "Type the 6-digit code we texted you",
+    "authenticator code",
+    "backup code",
+    "sms code",
+    "Enter your PIN",
+    "passwords",
+    "pass word",
+    "passw0rd",
+    "pass​word",
+    "pаssword",
+    "ｐａｓｓｗｏｒｄ",
+    "creditcard",
+    "p a s s w o r d",
+    "IBAN",
+    "routing number",
+    "driving licence",
+    "mot de passe",
+    "api key",
+    "login credentials",
+    "security answer",
   ])("blocks %s", (t) => expect(sensitiveMatch([t])).not.toBeNull());
 
-  it.each(["a clear photo of the water meter", "pizza or tacos", "a pinned note", "photo of a chopstick", "your favourite hotel"])(
+  it.each(["a clear photo of the water meter", "pizza or tacos", "a pinned note", "photo of a chopstick", "your favourite hotel", "drop a pin on the map", "a map pin", "pin it on the wall", "a photo of the compass"])(
     "allows %s",
     (t) => expect(sensitiveMatch([t])).toBeNull(),
   );
