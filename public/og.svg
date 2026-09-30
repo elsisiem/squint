@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630">
+  <title>Squint: a camera for headless agents</title>
+  <defs>
+    <linearGradient id="g" x1="0" x2="1"><stop offset="0" stop-color="#22d3ee"/><stop offset="1" stop-color="#7c3aed"/></linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="#faf6ee"/>
+  <!-- faint facet lines in the background -->
+  <g fill="none" stroke="#1c1b22" stroke-opacity=".05" stroke-width="2">
+    <polygon points="700,0 1200,0 1200,300 950,630 600,630"/>
+    <polyline points="700,0 950,630"/><polyline points="1200,300 600,630"/>
+  </g>
+  <rect x="0" y="0" width="1200" height="10" fill="url(#g)"/>
+
+  <!-- Squint, scaled 2.6x -->
+  <g transform="translate(70 120) scale(2.6)">
+    <ellipse cx="100" cy="188" rx="52" ry="7" fill="#1c1b22" opacity=".12"/>
+    <g stroke="#fff" stroke-opacity=".55" stroke-width="1.5" stroke-linejoin="round">
+      <polygon points="50,50 150,50 130,95 70,95" fill="#a5f3fc"/>
+      <polygon points="50,50 70,95 15,95" fill="#22d3ee"/>
+      <polygon points="150,50 185,95 130,95" fill="#67b7fb"/>
+      <polygon points="15,95 70,95 100,180" fill="#5b8cf5"/>
+      <polygon points="70,95 130,95 100,180" fill="#8b6cf7"/>
+      <polygon points="130,95 185,95 100,180" fill="#7440e0"/>
+    </g>
+    <polygon points="58,55 92,55 80,72 62,72" fill="#fff" opacity=".35"/>
+    <ellipse cx="100" cy="104" rx="36" ry="29" fill="#fff" stroke="#1c1b22" stroke-width="3"/>
+    <circle cx="106" cy="102" r="15" fill="#1c1b22"/>
+    <circle cx="111" cy="96" r="5" fill="#fff"/>
+    <path d="M168 18 Q170 30 182 32 Q170 34 168 46 Q166 34 154 32 Q166 30 168 18Z" fill="#f5b82e"/>
+  </g>
+
+  <g font-family="'Bricolage Grotesque','Avenir Next','Segoe UI',system-ui,sans-serif" fill="#1c1b22">
+    <text x="640" y="250" font-size="120" font-weight="800" letter-spacing="-3">Squint</text>
+    <text x="640" y="325" font-size="44" font-weight="600">A camera for headless agents.</text>
+  </g>
+  <g font-family="Inter,'Segoe UI',system-ui,sans-serif" fill="#4a4856" font-size="28">
+    <text x="640" y="395">Your agent asks. A phone answers.</text>
+    <text x="640" y="435">Claude checks the shot on the spot.</text>
+    <text x="640" y="475">You get JSON, not the image.</text>
+  </g>
+  <g font-family="ui-monospace,Consolas,monospace" font-size="24" fill="#1c1b22">
+    <rect x="640" y="520" width="470" height="52" rx="10" fill="#1c1b22"/>
+    <text x="662" y="554" fill="#a5f3fc">squint.elsisi.workers.dev</text>
+  </g>
+</svg>

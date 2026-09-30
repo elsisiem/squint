@@ -1,0 +1,19 @@
+{
+  "name": "squint",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "check": "npm run typecheck && npm run test",
+    "db:local": "wrangler d1 migrations apply squint --local",
+    "db:remote": "wrangler d1 migrations apply squint --remote",
+    "demo": "tsx scripts/demo-agent.ts",
+    "brainbase": "tsx scripts/brainbase-agent.ts"
+  },
+  "dependencies": { "hono": "^4.13.10", "qrcode-generator": "^1.4.4", "zod": "^4.6.5" },
+  "devDependencies": { "@cloudflare/workers-types": "^4.20260702.1", "@types/node": "^26.6.3", "tsx": "^4.23.15", "typescript": "^5.9.3", "vitest": "^4.1.11", "wrangler": "^4.86.0" }
+}

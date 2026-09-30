@@ -1,0 +1,505 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#faf7f2" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#12111d" media="(prefers-color-scheme: dark)">
+<title>Squint</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<style>
+:root{
+  --bg:#faf7f2; --card:#fff; --ink:#1b1a2e; --muted:#5d5b73; --line:#e4dfd5;
+  --accent:linear-gradient(135deg,#0e7490,#6d28d9); --focus:#6d28d9;
+  --warn-bg:#fff4d6; --warn-ink:#6b4a00; --warn-line:#f0d98a;
+  --bad:#b42318; --good:#15803d; --lid:#6d6ae8; --ink-svg:#1f1b4d;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#12111d; --card:#1c1b2d; --ink:#f2f0fa; --muted:#a9a6c0; --line:#33314a;
+    --focus:#a78bfa; --warn-bg:#2d2410; --warn-ink:#f5d98b; --warn-line:#5a4716;
+    --bad:#ff8a80; --good:#6ee7a0;
+  }
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0; min-height:100vh; min-height:100dvh; background:var(--bg); color:var(--ink);
+  font:17px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  padding:max(20px,env(safe-area-inset-top)) max(18px,env(safe-area-inset-right)) max(24px,env(safe-area-inset-bottom)) max(18px,env(safe-area-inset-left));
+  display:flex; justify-content:center;
+}
+main{width:100%; max-width:440px; display:flex; flex-direction:column; align-items:center; text-align:center; gap:14px}
+.brand{font-size:.8rem; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); font-weight:700; margin:0}
+#mascot{width:150px; height:150px; margin:2px 0 -2px; overflow:visible}
+#mascot svg{width:100%; height:100%; overflow:visible; display:block}
+h1{font-size:1.45rem; line-height:1.25; margin:0; font-weight:750; overflow-wrap:anywhere}
+.msg{font-size:1.4rem; line-height:1.3; font-weight:700; margin:0; overflow-wrap:anywhere; min-height:1.2em}
+.msg:empty{display:none}
+.msg.bad{color:var(--bad)} .msg.good{color:var(--good)}
+.sub{color:var(--muted); font-size:.95rem; margin:0}
+.spin{display:flex; gap:7px; justify-content:center; height:14px}
+.spin i{width:11px; height:11px; border-radius:50%; background:var(--focus); animation:pulse 1s infinite ease-in-out}
+.spin i:nth-child(2){animation-delay:.15s} .spin i:nth-child(3){animation-delay:.3s}
+@keyframes pulse{0%,80%,100%{transform:scale(.5);opacity:.4}40%{transform:scale(1);opacity:1}}
+
+.panel{width:100%; display:flex; flex-direction:column; gap:12px}
+.btn{
+  appearance:none; -webkit-appearance:none; border:0; cursor:pointer; width:100%; min-height:60px;
+  padding:14px 20px; border-radius:16px; font:inherit; font-size:1.15rem; font-weight:700; color:#fff;
+  background:var(--accent); display:flex; align-items:center; justify-content:center; gap:10px;
+  -webkit-tap-highlight-color:transparent; transition:transform .12s, filter .12s;
+}
+.btn:active{transform:scale(.98)} .btn:disabled{opacity:.5; cursor:default}
+.btn.alt{background:var(--card); color:var(--ink); border:2px solid var(--line)}
+.btn.opt{background:var(--card); color:var(--ink); border:2px solid var(--line); justify-content:flex-start; text-align:left; font-weight:650}
+.btn.opt:active,.btn.opt.sel{border-color:var(--focus)}
+.btn svg{width:24px; height:24px; flex:none}
+:focus-visible{outline:3px solid var(--focus); outline-offset:3px}
+textarea{
+  width:100%; min-height:130px; padding:14px 16px; border-radius:16px; border:2px solid var(--line);
+  background:var(--card); color:var(--ink); font:inherit; font-size:1.1rem; resize:vertical;
+}
+textarea:focus{outline:3px solid var(--focus); outline-offset:1px; border-color:var(--focus)}
+label.lbl{text-align:left; font-weight:650; font-size:.95rem}
+.count{font-size:.85rem; color:var(--muted); text-align:right; margin-top:-6px}
+
+#thumb{width:min(200px,60%); max-height:200px; object-fit:cover; border-radius:14px; border:3px solid var(--line); box-shadow:0 4px 18px rgba(0,0,0,.12)}
+#thumb.bad{border-color:var(--bad)} #thumb.good{border-color:var(--good)}
+#dots{display:flex; flex-direction:column; align-items:center; gap:6px; color:var(--muted); font-size:.9rem; font-weight:600}
+#dots .row{display:flex; gap:7px}
+#dots .d{width:12px; height:12px; border-radius:50%; border:2px solid var(--muted)}
+#dots .d.used{background:var(--bad); border-color:var(--bad)}
+#dots .d.cur{border-color:var(--focus); box-shadow:0 0 0 2px var(--focus) inset}
+
+.banner{
+  display:flex; gap:10px; align-items:flex-start; text-align:left; width:100%; margin-top:6px;
+  padding:12px 14px; border-radius:14px; background:var(--warn-bg); color:var(--warn-ink);
+  border:1px solid var(--warn-line); font-size:.92rem; font-weight:600;
+}
+.banner b{flex:none; width:22px; height:22px; border-radius:50%; background:var(--warn-ink); color:var(--warn-bg);
+  display:grid; place-items:center; font-size:.85rem; line-height:1}
+.privacy{font-size:.85rem; color:var(--muted); margin:0}
+.sr{position:absolute!important; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap}
+
+/* ---- mascot states ---- */
+.t{transition:transform .4s cubic-bezier(.3,.8,.2,1), opacity .3s}
+#eye{transform-origin:100px 92px}
+.iris{transform-origin:100px 92px}
+.lidT{transform:translateY(-44px)} .lidB{transform:translateY(44px)}
+.brow{opacity:0; transform:translateY(-6px)}
+#bl{transform-origin:77px 49px} #br{transform-origin:123px 49px}
+.sp{transform:scale(0); transition:transform .4s cubic-bezier(.3,1.6,.4,1)}
+/* squint */
+[data-mood=squint] .lidT{transform:translateY(-4px)}
+[data-mood=squint] .lidB{transform:translateY(12px)}
+[data-mood=squint] .brow{opacity:1; transform:translateY(7px)}
+[data-mood=squint] #bl{transform:translateY(7px) rotate(14deg)}
+[data-mood=squint] #br{transform:translateY(7px) rotate(-14deg)}
+/* wide-eyed + sparkle */
+[data-mood=wide] #eye{transform:scale(1.2)}
+[data-mood=wide] .iris{transform:scale(1.15)}
+[data-mood=wide] .brow{opacity:1; transform:translateY(-7px)}
+[data-mood=wide] .sp{transform:scale(1); animation:tw 1.4s infinite ease-in-out}
+[data-mood=wide] .sp.b{animation-delay:.35s} [data-mood=wide] .sp.c{animation-delay:.7s}
+@keyframes tw{50%{transform:scale(1.35)}}
+/* looking: iris sweeps side to side */
+#mascot.look .iris{animation:lk 1.3s infinite ease-in-out}
+@keyframes lk{0%,100%{transform:translateX(-11px)}50%{transform:translateX(11px)}}
+#mascot.shake{animation:sh .45s}
+@keyframes sh{20%{transform:translateX(-6px) rotate(-3deg)}50%{transform:translateX(6px) rotate(3deg)}80%{transform:translateX(-3px)}}
+#mascot[data-mood=open]:not(.look){animation:bob 3.2s infinite ease-in-out}
+@keyframes bob{50%{transform:translateY(-4px)}}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none!important; transition-duration:.01ms!important}
+}
+</style>
+</head>
+<body>
+<main>
+  <p class="brand">Squint</p>
+
+  <div id="mascot" data-mood="open" aria-hidden="true">
+    <svg viewBox="0 0 200 200" focusable="false">
+      <defs>
+        <linearGradient id="gem" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#67e8f9"/><stop offset="1" stop-color="#8b5cf6"/></linearGradient>
+        <clipPath id="eyeclip"><ellipse cx="100" cy="92" rx="42" ry="28"/></clipPath>
+        <path id="star" d="M0-11Q0 0 11 0Q0 0 0 11Q0 0-11 0Q0 0 0-11Z"/>
+      </defs>
+      <!-- gem body -->
+      <polygon points="62,30 138,30 184,84 100,190 16,84" fill="url(#gem)"/>
+      <polygon points="16,84 62,30 100,84" fill="#fff" opacity=".2"/>
+      <polygon points="62,30 138,30 100,84" fill="#fff" opacity=".34"/>
+      <polygon points="138,30 184,84 100,84" fill="#000" opacity=".08"/>
+      <polygon points="16,84 100,84 100,190" fill="#fff" opacity=".1"/>
+      <polygon points="184,84 100,84 100,190" fill="#000" opacity=".18"/>
+      <polygon points="62,30 138,30 184,84 100,190 16,84" fill="none" stroke="#fff" stroke-opacity=".55" stroke-width="2" stroke-linejoin="round"/>
+      <!-- eye -->
+      <g id="eye" class="t">
+        <ellipse cx="100" cy="92" rx="42" ry="28" fill="#fff"/>
+        <g clip-path="url(#eyeclip)">
+          <g class="iris t">
+            <circle cx="100" cy="92" r="18" fill="#2a1f66"/>
+            <circle cx="100" cy="92" r="9" fill="#0b0820"/>
+            <circle cx="107" cy="85" r="4.5" fill="#fff"/>
+          </g>
+          <g class="lidT t"><rect x="50" y="50" width="100" height="42" fill="var(--lid)"/><line x1="50" y1="92" x2="150" y2="92" stroke="var(--ink-svg)" stroke-width="3"/></g>
+          <g class="lidB t"><rect x="50" y="92" width="100" height="42" fill="var(--lid)"/><line x1="50" y1="92" x2="150" y2="92" stroke="var(--ink-svg)" stroke-width="3"/></g>
+        </g>
+        <ellipse cx="100" cy="92" rx="42" ry="28" fill="none" stroke="var(--ink-svg)" stroke-width="3"/>
+      </g>
+      <path id="bl" class="brow t" d="M60 52Q78 44 94 50" fill="none" stroke="var(--ink-svg)" stroke-width="5" stroke-linecap="round"/>
+      <path id="br" class="brow t" d="M106 50Q122 44 140 52" fill="none" stroke="var(--ink-svg)" stroke-width="5" stroke-linecap="round"/>
+      <!-- sparkles -->
+      <g transform="translate(22 40)"><g class="sp a"><use href="#star" fill="#fbbf24"/></g></g>
+      <g transform="translate(180 30)"><g class="sp b"><use href="#star" fill="#fbbf24"/></g></g>
+      <g transform="translate(172 152)"><g class="sp c"><use href="#star" fill="#fcd34d"/></g></g>
+    </svg>
+  </div>
+
+  <h1 id="title"></h1>
+  <p class="msg" id="msg" role="status" aria-live="polite"></p>
+  <div class="spin" id="spin" hidden aria-hidden="true"><i></i><i></i><i></i></div>
+  <img id="thumb" alt="The photo you sent" hidden>
+
+  <!-- photo -->
+  <div class="panel" id="pPhoto" hidden>
+    <button type="button" class="btn" id="photoBtn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13" r="3.5"/></svg>
+      <span id="photoLbl">Take a photo</span>
+    </button>
+    <input class="sr" type="file" id="file" accept="image/*" capture="environment" tabindex="-1" aria-hidden="true">
+  </div>
+  <!-- location -->
+  <div class="panel" id="pLoc" hidden>
+    <button type="button" class="btn" id="locBtn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s7-6.2 7-11.5A7 7 0 0 0 5 9.5C5 14.800 12 21 12 21z"/><circle cx="12" cy="9.500" r="2.500"/></svg>
+      <span id="locLbl">Share my location</span>
+    </button>
+  </div>
+  <!-- choice -->
+  <div class="panel" id="pChoice" hidden role="group" aria-labelledby="title"></div>
+  <!-- text -->
+  <form class="panel" id="pText" hidden>
+    <label class="lbl" for="txt">Your answer</label>
+    <textarea id="txt" maxlength="280" rows="4" autocomplete="off" enterkeyhint="send"></textarea>
+    <div class="count" id="cnt" aria-hidden="true">0 / 280</div>
+    <button type="submit" class="btn" id="txtBtn" disabled>Send</button>
+  </form>
+  <!-- retry after network / server trouble -->
+  <div class="panel" id="pRetry" hidden>
+    <button type="button" class="btn" id="retryBtn">Try again</button>
+  </div>
+
+  <div id="dots" hidden>
+    <div class="row" id="dotRow" aria-hidden="true"></div>
+    <span id="dotTxt"></span>
+  </div>
+
+  <div class="banner" role="note"><b aria-hidden="true">!</b><span>Never share passwords, card numbers or IDs.</span></div>
+  <p class="privacy">Photo is checked then thrown away. Your agent only receives the typed answer.</p>
+  <noscript><p class="msg bad">Squint needs JavaScript to open your camera.</p></noscript>
+</main>
+
+<script>
+(() => {
+'use strict';
+const $ = (i) => document.getElementById(i);
+const PANELS = ['pPhoto', 'pLoc', 'pChoice', 'pText', 'pRetry'];
+const seg = location.pathname.split('/').filter(Boolean);
+const id = seg.length ? decodeURIComponent(seg[seg.length - 1]) : '';
+const API = '/v1/public/asks/' + encodeURIComponent(id);
+
+let ask = null;         // public ask view from the server
+let attempts = 0;
+let busy = false;
+let lastPayload = null; // last submit body, kept so a network error can retry without losing the photo
+let prevMood = 'open';
+
+/* ---------- rendering ---------- */
+function setMood(m, look) {
+  const el = $('mascot');
+  el.dataset.mood = m;
+  el.classList.toggle('look', !!look);
+  if (m === 'squint' && prevMood !== 'squint') {
+    el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake');
+    el.addEventListener('animationend', () => el.classList.remove('shake'), { once: true });
+  }
+  prevMood = m;
+}
+
+// o: {mood, look, title, msg, tone, thumb:'bad'|'good'|'', panels:[], dots}
+function ui(o) {
+  setMood(o.mood || 'open', o.look);
+  $('title').textContent = o.title || '';
+  $('title').hidden = !o.title;
+  const msg = $('msg');
+  msg.textContent = o.msg || '';
+  msg.className = 'msg ' + (o.tone || '');
+  $('spin').hidden = !o.look;
+  const th = $('thumb');
+  th.hidden = o.thumb == null;
+  th.className = o.thumb || '';
+  const ps = o.panels || [];
+  for (const p of PANELS) $(p).hidden = !ps.includes(p);
+  renderDots(!!o.dots);
+}
+
+function renderDots(show) {
+  const d = $('dots');
+  const max = ask && ask.max_attempts;
+  if (!show || !ask || ask.kind !== 'photo' || !(max > 1)) { d.hidden = true; return; }
+  const row = $('dotRow'); row.textContent = '';
+  const cur = Math.min(attempts, max - 1);
+  for (let i = 0; i < max; i++) {
+    const s = document.createElement('span');
+    s.className = 'd' + (i < attempts ? ' used' : i === cur ? ' cur' : '');
+    row.appendChild(s);
+  }
+  $('dotTxt').textContent = 'Try ' + Math.min(attempts + 1, max) + ' of ' + max;
+  d.hidden = false;
+}
+
+function thumbFrom(src) { $('thumb').src = src; }
+
+/* ---------- views ---------- */
+const INTRO = {
+  photo: 'Tap the button to open your camera.',
+  location: 'Your browser will ask before sharing.',
+  choice: 'Tap one.',
+  text: '',
+};
+
+function activeView(issue, tone) {
+  const k = ask.kind;
+  const panels = { photo: ['pPhoto'], location: ['pLoc'], choice: ['pChoice'], text: ['pText'] }[k] || [];
+  const bad = !!issue;
+  const hasThumb = k === 'photo' && bad && $('thumb').src && $('thumb').dataset.has === '1';
+  ui({
+    mood: bad ? 'squint' : 'open', title: ask.ask, msg: issue || INTRO[k] || '',
+    tone: tone || (bad ? 'bad' : ''), thumb: hasThumb ? 'bad' : null, panels, dots: true,
+  });
+  $('photoLbl').textContent = attempts > 0 || bad ? 'Retake' : 'Take a photo';
+  $('locLbl').textContent = bad ? 'Try again' : 'Share my location';
+  $('txtBtn').disabled = !$('txt').value.trim();
+  $('pChoice').querySelectorAll('.sel').forEach((x) => x.classList.remove('sel'));
+  busy = false;
+}
+
+function doneView(already) {
+  ui({
+    mood: 'wide', title: already ? 'Already done' : 'Got it.',
+    msg: already ? 'This request was already answered. You can close this page.' : 'You can close this page.',
+    tone: 'good', thumb: already ? null : ($('thumb').dataset.has === '1' ? 'good' : null),
+  });
+}
+function expiredView() { ui({ mood: 'squint', title: 'This request expired', msg: 'Ask your agent to send a new link.' }); }
+function notFoundView() { ui({ mood: 'squint', title: 'Link not found', msg: 'Check the link, or ask your agent for a new one.' }); }
+function failedView(feedback) {
+  ui({
+    mood: 'squint', title: 'Too many tries',
+    msg: feedback || "Squint couldn't get what it needed. Ask your agent to send a new link.", tone: 'bad',
+    thumb: $('thumb').dataset.has === '1' ? 'bad' : null, dots: true,
+  });
+}
+function loadingView() { ui({ mood: 'open', look: true, msg: 'Loading…' }); }
+
+// Something went wrong talking to the server: offer a retry that resends the very same payload.
+function problem(text, retry, alsoRetake) {
+  busy = false;
+  ui({
+    mood: 'squint', title: ask ? ask.ask : '', msg: text, tone: 'bad',
+    thumb: $('thumb').dataset.has === '1' ? 'bad' : null,
+    panels: alsoRetake && ask && ask.kind === 'photo' ? ['pRetry', 'pPhoto'] : ['pRetry'], dots: true,
+  });
+  $('photoLbl').textContent = 'Retake';
+  $('retryBtn').onclick = retry;
+}
+
+/* ---------- network ---------- */
+async function api(path, opts) {
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), 45000);
+  try {
+    const res = await fetch(path, Object.assign({ signal: ctl.signal, cache: 'no-store' }, opts));
+    let data = null;
+    try { data = await res.json(); } catch (_) { /* non-JSON body */ }
+    return { res, data };
+  } finally { clearTimeout(timer); }
+}
+
+const NET_MSG = "Can't reach Squint. Check your connection and try again.";
+
+async function boot() {
+  loadingView();
+  if (!id) return notFoundView();
+  let r;
+  try { r = await api(API); } catch (_) { return problem(NET_MSG, boot); }
+  if (r.res.status === 404) return notFoundView();
+  if (!r.res.ok || !r.data) {
+    return problem((r.data && r.data.message) || 'Something went wrong. Please try again.', boot);
+  }
+  ask = r.data; attempts = ask.attempts || 0;
+  document.title = 'Squint: ' + ask.ask;
+  if (ask.status === 'expired') return expiredView();
+  if (ask.status === 'done') return doneView(true);
+  if (ask.status === 'failed') return failedView(ask.last_issue);
+  if (ask.kind === 'choice') buildChoices();
+  if (ask.kind === 'text') $('txt').placeholder = ask.hint || '';
+  activeView(attempts > 0 ? ask.last_issue : null);
+}
+
+async function send(payload) {
+  lastPayload = payload;
+  busy = true;
+  ui({
+    mood: 'open', look: true, title: ask.ask, msg: ask.kind === 'photo' ? 'Squint is looking…' : 'Sending…',
+    thumb: ask.kind === 'photo' ? '' : null, dots: true,
+  });
+  let r;
+  try {
+    r = await api(API + '/submit', {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload),
+    });
+  } catch (_) { return problem(NET_MSG, () => send(payload)); }
+  handleResult(r);
+}
+
+function handleResult({ res, data }) {
+  busy = false;
+  const st = data && data.status;
+  if (st === 'accepted' || st === 'rejected' || st === 'failed' || st === 'expired') {
+    if (typeof data.attempts === 'number') attempts = data.attempts;
+    if (typeof data.max_attempts === 'number') ask.max_attempts = data.max_attempts;
+    if (st === 'accepted') return doneView(false);
+    if (st === 'expired') return expiredView();
+    if (st === 'rejected') return activeView(data.feedback || 'That did not work. Please try again.', 'bad');
+    // "failed": terminal once tries are used up, otherwise a retryable hiccup that did not burn an attempt
+    if (attempts >= ask.max_attempts) return failedView(data.feedback);
+    const payload = lastPayload;
+    return problem(data.feedback || 'Squint hit a snag. Please try again.', () => send(payload), true);
+  }
+  if (res.status === 404) return notFoundView();
+  if (res.status === 410) return expiredView();
+  const text = (data && data.message) || 'Something went wrong (' + res.status + '). Please try again.';
+  // 5xx / rate limit: the same payload may work later. Other 4xx: the input itself is the problem.
+  if (res.status >= 500 || res.status === 429) { const p = lastPayload; return problem(text, () => send(p), true); }
+  activeView(text, 'bad');
+}
+
+/* ---------- photo ---------- */
+function loadImg(url) {
+  return new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = no; i.src = url; });
+}
+
+// Returns {src, w, h, done()} with EXIF orientation applied.
+async function decode(file) {
+  let bmp = null;
+  if (window.createImageBitmap) {
+    try { bmp = await createImageBitmap(file, { imageOrientation: 'from-image' }); }
+    catch (_) { try { bmp = await createImageBitmap(file); } catch (__) { bmp = null; } }
+  }
+  const url = URL.createObjectURL(file);
+  try {
+    // <img> always honors EXIF. If it disagrees with the bitmap about portrait/landscape, trust it.
+    // (Only loaded when a bitmap exists to compare, or as the fallback when it doesn't.)
+    let img = null;
+    try { img = await loadImg(url); } catch (e) { if (!bmp) throw e; }
+    if (bmp && (!img || (img.naturalWidth > img.naturalHeight) === (bmp.width > bmp.height))) {
+      return { src: bmp, w: bmp.width, h: bmp.height, done() { bmp.close && bmp.close(); URL.revokeObjectURL(url); } };
+    }
+    if (bmp && bmp.close) bmp.close();
+    return { src: img, w: img.naturalWidth, h: img.naturalHeight, done() { URL.revokeObjectURL(url); } };
+  } catch (e) { URL.revokeObjectURL(url); throw e; }
+}
+
+// Downscale to <=1280px long edge, JPEG q0.8 (falls back to smaller if the server's 1.5 MB cap would be hit).
+async function prepare(file) {
+  const d = await decode(file);
+  try {
+    if (!d.w || !d.h) throw new Error('empty');
+    const c = document.createElement('canvas');
+    for (const [maxEdge, q] of [[1280, 0.8], [1280, 0.6], [960, 0.6], [640, 0.6]]) {
+      const s = Math.min(1, maxEdge / Math.max(d.w, d.h));
+      c.width = Math.max(1, Math.round(d.w * s)); c.height = Math.max(1, Math.round(d.h * s));
+      const g = c.getContext('2d');
+      g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height);
+      g.drawImage(d.src, 0, 0, c.width, c.height);
+      const url = c.toDataURL('image/jpeg', q);
+      const i = url.indexOf(',');
+      if (i < 0 || !url.startsWith('data:image/jpeg')) throw new Error('encode');
+      const b64 = url.slice(i + 1);
+      if (b64.length * 0.75 < 1.4e6) {
+        return { url, payload: { image: b64, media_type: 'image/jpeg', width: c.width, height: c.height } };
+      }
+    }
+    throw new Error('too big');
+  } finally { d.done(); }
+}
+
+$('photoBtn').addEventListener('click', () => { if (!busy) $('file').click(); });
+$('file').addEventListener('change', async (e) => {
+  const file = e.target.files && e.target.files[0];
+  e.target.value = ''; // allows re-picking the same file
+  if (!file || busy) return;
+  busy = true;
+  ui({ mood: 'open', look: true, title: ask.ask, msg: 'Squint is looking…', thumb: $('thumb').dataset.has === '1' ? '' : null, dots: true });
+  let p;
+  try { p = await prepare(file); }
+  catch (_) { activeView("I couldn't read that photo. Please try again.", 'bad'); return; }
+  thumbFrom(p.url); $('thumb').dataset.has = '1';
+  send(p.payload);
+});
+
+/* ---------- location ---------- */
+$('locBtn').addEventListener('click', () => {
+  if (busy) return;
+  if (!navigator.geolocation) return activeView("This browser can't share location.", 'bad');
+  busy = true;
+  ui({ mood: 'open', look: true, title: ask.ask, msg: 'Finding you…', dots: false });
+  navigator.geolocation.getCurrentPosition(
+    (pos) => send({ lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy_m: Math.round(pos.coords.accuracy || 0) }),
+    (err) => activeView(
+      err.code === 1 ? 'Location is blocked. Allow location for this site in your browser settings, then tap again.'
+      : err.code === 3 ? 'That took too long. Tap to try again.'
+      : "Your phone couldn't work out where it is. Try near a window, then tap again.", 'bad'),
+    { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
+});
+
+/* ---------- choice ---------- */
+function buildChoices() {
+  const box = $('pChoice'); box.textContent = '';
+  (ask.options || []).forEach((label, index) => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'btn opt'; b.textContent = label;
+    b.addEventListener('click', () => {
+      if (busy) return;
+      box.querySelectorAll('.opt').forEach((x) => x.classList.remove('sel'));
+      b.classList.add('sel');
+      send({ index });
+    });
+    box.appendChild(b);
+  });
+}
+
+/* ---------- text ---------- */
+$('txt').addEventListener('input', () => {
+  const v = $('txt').value;
+  $('cnt').textContent = v.length + ' / 280';
+  $('txtBtn').disabled = !v.trim();
+});
+$('pText').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const text = $('txt').value.trim().slice(0, 280);
+  if (!text || busy) return;
+  send({ text });
+});
+
+boot();
+})();
+</script>
+</body>
+</html>

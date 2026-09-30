@@ -1,0 +1,21 @@
+name = "squint"
+main = "src/index.ts"
+compatibility_date = "2025-09-01"
+compatibility_flags = ["nodejs_compat"]
+
+[assets]
+directory = "./public"
+binding = "ASSETS"
+run_worker_first = ["/api/*", "/v1/*", "/s/*", "/q/*", "/mcp", "/openapi.json", "/llms.txt", "/agents.md", "/healthz"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "squint"
+database_id = "35ffa5ed-d086-404c-bea6-3ca779bbbd47"
+
+[triggers]
+crons = ["*/10 * * * *"]
+
+[vars]
+PUBLIC_BASE_URL = "https://squint.elsisi.workers.dev"
+VISION_MODEL = "claude-haiku-4-5-20251001"

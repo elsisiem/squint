@@ -1,0 +1,7 @@
+STRIPE_SECRET_KEY=
+ANTHROPIC_API_KEY=
+TOKEN_SECRET=
+BRAINBASE_API_KEY=
+ADMIN_SECRET=
+# Local dev: make url/qr_url point at the dev server instead of production
+# PUBLIC_BASE_URL=http://localhost:8787

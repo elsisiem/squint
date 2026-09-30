@@ -1,0 +1,747 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Squint: a camera for headless agents</title>
+<meta name="description" content="Your agent mints a link. Your human's phone takes the picture. Claude checks it on the spot and the agent gets typed JSON, never the image.">
+<meta property="og:title" content="Squint: a camera for headless agents">
+<meta property="og:description" content="Your agent asks. A phone answers. You get JSON, not the image.">
+<meta property="og:image" content="/og.svg">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#faf6ee">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="alternate" type="text/plain" href="/llms.txt" title="llms.txt">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Inter:wght@400;500;600&display=swap">
+<script>document.documentElement.classList.add('js')</script>
+<style>
+:root{
+  --bg:#faf6ee; --card:#fffdf8; --ink:#1c1b22; --mute:#5d5a68; --line:#e7dfcf;
+  --cyan:#22d3ee; --violet:#7c3aed; --gold:#f5b82e; --bad:#c2410c; --ok:#0f766e;
+  --grad:linear-gradient(100deg,#22d3ee,#7c3aed);
+  --display:"Bricolage Grotesque","Avenir Next",ui-rounded,system-ui,"Segoe UI",sans-serif;
+  --body:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:70px}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 17px/1.55 var(--body);-webkit-text-size-adjust:100%;overflow-x:hidden}
+a{color:inherit}
+h1,h2,h3{font-family:var(--display);line-height:1.08;margin:0;letter-spacing:-.02em}
+h1{font-size:clamp(2.5rem,7vw,4.6rem);font-weight:800}
+h2{font-size:clamp(1.8rem,4.4vw,2.6rem);font-weight:800}
+h3{font-size:1.25rem;font-weight:600}
+p{margin:0}
+code,pre{font-family:var(--mono);font-size:.86rem}
+.wrap{max-width:1080px;margin:0 auto;padding:0 20px}
+section{padding:72px 0}
+.lede{color:var(--mute);max-width:62ch;margin-top:12px}
+.grad{background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+.gold{background:linear-gradient(transparent 62%,rgba(245,184,46,.55) 62%)}
+.btn{display:inline-block;border:2px solid var(--ink);border-radius:12px;padding:11px 20px;font:600 1rem var(--body);text-decoration:none;cursor:pointer;background:var(--card);color:var(--ink);transition:transform .12s,box-shadow .12s}
+.btn:hover{transform:translate(-2px,-2px);box-shadow:3px 3px 0 var(--ink)}
+.btn.primary{background:var(--ink);color:#fff}
+.btn.primary:hover{box-shadow:3px 3px 0 var(--violet)}
+.btn:disabled{opacity:.5;cursor:wait;transform:none;box-shadow:none}
+.btn.small{padding:6px 12px;font-size:.85rem;border-width:1.5px;border-radius:9px}
+:focus-visible{outline:3px solid var(--violet);outline-offset:2px}
+
+/* nav */
+header{position:sticky;top:0;z-index:10;background:rgba(250,246,238,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+header .wrap{display:flex;align-items:center;justify-content:space-between;height:58px}
+.brand{display:flex;align-items:center;gap:8px;font:800 1.3rem var(--display);text-decoration:none}
+.brand img{width:30px;height:30px}
+nav{display:flex;gap:18px;font-size:.95rem;font-weight:500}
+nav a{text-decoration:none;color:var(--mute)}
+nav a:hover{color:var(--ink)}
+@media(max-width:620px){nav a.opt{display:none}nav{gap:14px}}
+
+/* hero */
+.hero{padding:48px 0 40px}
+.hero .wrap{display:grid;grid-template-columns:1.15fr .85fr;gap:32px;align-items:center}
+.hero p.sub{font-size:1.2rem;color:var(--mute);margin:20px 0 28px;max-width:34em}
+.cta{display:flex;flex-wrap:wrap;gap:12px}
+.stage{position:relative;display:grid;justify-items:center}
+.stage svg.squint{width:min(300px,70vw);height:auto;overflow:visible}
+.bubble{position:relative;background:var(--card);border:2px solid var(--ink);border-radius:14px;padding:8px 14px;font-size:.92rem;font-weight:500;margin-bottom:14px;max-width:260px;text-align:center}
+.bubble:after{content:"";position:absolute;left:50%;bottom:-9px;width:14px;height:14px;background:var(--card);border-right:2px solid var(--ink);border-bottom:2px solid var(--ink);transform:translateX(-50%) rotate(45deg)}
+.blurry{margin-top:10px;display:flex;align-items:center;gap:12px;cursor:help;padding:8px 12px;border:2px dashed var(--line);border-radius:14px;background:var(--card);font-size:.85rem;color:var(--mute);text-align:left}
+.blurry .photo{width:84px;height:58px;border-radius:6px;background:radial-gradient(circle at 30% 40%,#7dd3fc,transparent 45%),radial-gradient(circle at 70% 60%,#c4b5fd,transparent 50%),#d6d3d1;filter:blur(3.5px)}
+.blurry svg{width:44px;height:44px;flex:none}
+@media(max-width:800px){.hero .wrap{grid-template-columns:1fr}.stage{order:-1}.stage svg.squint{width:min(200px,55vw)}}
+
+/* mascot states */
+svg.squint .eye{transition:transform .25s cubic-bezier(.3,1.5,.6,1)}
+svg.squint .lid{animation:blink 5.5s infinite;transform-origin:100px 104px}
+svg.squint .pupil{transform:translate(var(--px,0px),var(--py,0px));transition:transform .12s ease-out}
+svg.squint .spark{opacity:.85;transform-origin:168px 32px;animation:twinkle 3s ease-in-out infinite}
+svg.squint .bits{opacity:0;transition:opacity .2s}
+svg.squint.m-squint .eye{transform:scaleY(.2)}
+svg.squint.m-squint .pupil{transform:translate(0,0)}
+svg.squint.m-happy .eye{transform:scale(1.14)}
+svg.squint.m-happy .bits{opacity:1}
+svg.squint.m-happy{animation:hop .6s ease-out}
+@keyframes blink{0%,94%,100%{transform:scaleY(1)}97%{transform:scaleY(.08)}}
+@keyframes twinkle{50%{transform:scale(.6) rotate(20deg);opacity:.5}}
+@keyframes hop{30%{transform:translateY(-14px)}60%{transform:translateY(0)}80%{transform:translateY(-4px)}}
+
+/* cards */
+.card{background:var(--card);border:2px solid var(--ink);border-radius:18px;padding:20px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:28px}
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-top:28px}
+.grid2>*,.grid4>*,.demo>*{min-width:0}
+@media(max-width:900px){.grid4{grid-template-columns:1fr 1fr}}
+@media(max-width:700px){.grid2{grid-template-columns:1fr}}
+@media(max-width:480px){.grid4{grid-template-columns:1fr}}
+
+/* demo */
+.demo{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:28px;align-items:start}
+@media(max-width:860px){.demo{grid-template-columns:1fr}}
+.demo label.t{font:600 .8rem var(--body);text-transform:uppercase;letter-spacing:.08em;color:var(--mute);display:block;margin:0 0 8px}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}
+.chip{border:2px solid var(--ink);background:var(--bg);border-radius:999px;padding:6px 14px;font:600 .92rem var(--body);cursor:pointer}
+.chip[aria-pressed=true]{background:var(--ink);color:#fff}
+input[type=text]{width:100%;font:500 1rem var(--body);padding:10px 12px;border:2px solid var(--ink);border-radius:10px;background:#fff;color:var(--ink);margin-bottom:16px}
+pre.code{margin:0 0 16px;background:var(--ink);color:#e9e7f2;border-radius:12px;padding:14px;overflow:auto;line-height:1.5;white-space:pre}
+.k{color:#7dd3fc}.s{color:#fcd34d}.n{color:#c4b5fd}.b{color:#f9a8d4}.c{color:#8c8aa0}
+.msg{border-radius:10px;padding:10px 12px;font-size:.93rem;margin-top:12px;border:2px solid var(--bad);background:#fff1ea;color:#7c2d12}
+.note{font-size:.82rem;color:var(--mute);margin-top:10px}
+.idle{display:grid;justify-items:center;text-align:center;gap:10px;padding:26px 0;color:var(--mute)}
+.idle svg.squint{width:110px;height:auto}
+.live{display:none}
+.live.on{display:block}
+.qrrow{display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap}
+.qr{width:148px;height:148px;background:#fff;border:2px solid var(--ink);border-radius:12px;padding:6px;flex:none}
+.qrinfo{flex:1;min-width:170px;font-size:.9rem}
+.qrinfo .url{font:.8rem var(--mono);word-break:break-all;background:var(--bg);border-radius:8px;padding:6px 8px;margin:6px 0 8px;display:block}
+.acts{display:flex;gap:8px;flex-wrap:wrap}
+.mini{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.mini svg.squint{width:56px;height:auto;flex:none}
+.mini .timer{font:600 .85rem var(--mono);color:var(--mute)}
+ol.tl{list-style:none;margin:16px 0 0;padding:0}
+ol.tl li{position:relative;padding:0 0 12px 28px;font-size:.93rem}
+ol.tl li:before{content:"";position:absolute;left:0;top:5px;width:14px;height:14px;border-radius:3px;transform:rotate(45deg);background:var(--line)}
+ol.tl li:after{content:"";position:absolute;left:6px;top:22px;bottom:-3px;width:2px;background:var(--line)}
+ol.tl li:last-child:after{display:none}
+ol.tl li.ok:before{background:var(--ok)}
+ol.tl li.bad:before{background:var(--bad)}
+ol.tl li.wait:before{background:var(--gold);animation:pulse 1.2s infinite}
+ol.tl li small{display:block;color:var(--mute);font-size:.85rem}
+@keyframes pulse{50%{transform:rotate(45deg) scale(.6)}}
+#result{display:none;margin-top:6px}
+#result.on{display:block}
+#result pre{margin:8px 0}
+.saved{font-weight:600;background:linear-gradient(transparent 60%,rgba(245,184,46,.5) 60%);display:inline}
+
+/* transcripts */
+.panel h3{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.panel h3 svg{width:46px;height:46px;flex:none}
+.panel .sub2{font-size:.88rem;color:var(--mute);margin-bottom:12px}
+ol.tx{list-style:none;margin:0;padding:12px;background:var(--ink);color:#d8d6e4;border-radius:12px;font:.8rem/1.55 var(--mono);min-height:15.5em}
+ol.tx li{padding:2px 0;overflow-wrap:anywhere}
+ol.tx b{color:#7dd3fc;font-weight:600}
+ol.tx b.h{color:#a8a6b8}
+ol.tx .img{background:#44414f;border-radius:4px;padding:0 5px;color:#fcd34d}
+ol.tx .tot{color:#fff;border-top:1px dashed #5d5a68;margin-top:6px;padding-top:6px}
+.after ol.tx .tot{color:#fcd34d}
+.js ol.tx li{opacity:0}
+.js ol.tx.play li{animation:line .35s forwards;animation-delay:calc(var(--i)*.6s)}
+@keyframes line{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+
+/* kinds */
+.kind svg{width:44px;height:44px;margin-bottom:8px}
+.kind p{font-size:.92rem;color:var(--mute);margin:6px 0 10px}
+.kind pre{margin:0;background:var(--bg);border-radius:8px;padding:8px;overflow:auto;font-size:.74rem;white-space:pre-wrap;overflow-wrap:anywhere}
+
+/* integrate */
+.tabs{display:flex;gap:6px;margin-top:28px;flex-wrap:wrap}
+.tab{border:2px solid var(--ink);border-bottom:0;background:var(--bg);border-radius:12px 12px 0 0;padding:8px 16px;font:600 .92rem var(--body);cursor:pointer}
+.tab[aria-selected=true]{background:var(--ink);color:#fff}
+.tabpanel{background:var(--ink);border:2px solid var(--ink);border-radius:0 14px 14px 14px;padding:16px;color:#e9e7f2;position:relative}
+.tabpanel[hidden]{display:none}
+.tabpanel pre{margin:0;overflow:auto;line-height:1.55}
+.tabpanel .copy{position:absolute;top:10px;right:10px}
+.tabpanel p.cap{font-size:.88rem;color:#b9b7c9;margin:0 0 10px;padding-right:70px}
+.tabpanel .btn{background:#fffdf8}
+.tabpanel ul{margin:0;padding-left:20px}
+.tabpanel a{color:#7dd3fc}
+
+/* safety */
+.safe li{margin:0 0 10px}
+.safe{padding-left:20px;margin:0}
+.sgrid{display:grid;grid-template-columns:1.2fr .8fr;gap:28px;align-items:center}
+.sgrid svg{width:100%;max-width:230px;height:auto;justify-self:center}
+@media(max-width:700px){.sgrid{grid-template-columns:1fr}}
+
+footer{border-top:1px solid var(--line);padding:32px 0 48px;font-size:.92rem;color:var(--mute)}
+footer .wrap{display:flex;flex-wrap:wrap;gap:16px 28px;align-items:center;justify-content:space-between}
+footer nav a{color:var(--ink)}
+
+@media (prefers-reduced-motion:reduce){
+  *,*:before,*:after{animation:none!important;transition:none!important;scroll-behavior:auto!important}
+  .js ol.tx li{opacity:1}
+}
+</style>
+</head>
+<body>
+
+<!-- shared defs: the two supporting gems -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <filter id="fuzz" x="-10%" y="-10%" width="120%" height="120%"><feGaussianBlur stdDeviation=".9"/></filter>
+    <symbol id="blur" viewBox="0 0 120 120">
+      <g filter="url(#fuzz)" stroke="#fff" stroke-opacity=".35" stroke-width="1.5" stroke-linejoin="round">
+        <polygon points="22,30 92,24 60,58" fill="#b4b1b8"/>
+        <polygon points="92,24 112,62 60,58" fill="#9b98a1"/>
+        <polygon points="112,62 86,106 60,58" fill="#85828c"/>
+        <polygon points="86,106 34,100 60,58" fill="#9a97a0"/>
+        <polygon points="34,100 10,60 60,58" fill="#a9a6ae"/>
+        <polygon points="10,60 22,30 60,58" fill="#c4c1c8"/>
+      </g>
+      <circle cx="44" cy="62" r="8" fill="#fff" stroke="#1c1b22" stroke-width="2"/><circle cx="44" cy="64" r="3.5" fill="#1c1b22"/>
+      <circle cx="76" cy="62" r="8" fill="#fff" stroke="#1c1b22" stroke-width="2"/><circle cx="76" cy="64" r="3.5" fill="#1c1b22"/>
+      <path d="M32 46 L54 54 M88 46 L66 54" stroke="#1c1b22" stroke-width="4" stroke-linecap="round"/>
+      <path d="M47 88 Q60 78 73 88" fill="none" stroke="#1c1b22" stroke-width="3.5" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="sparkle" viewBox="0 0 120 120">
+      <g stroke="#fff" stroke-opacity=".6" stroke-width="1.5" stroke-linejoin="round">
+        <polygon points="30,28 90,28 76,50 44,50" fill="#fff0b3"/>
+        <polygon points="30,28 44,50 10,55" fill="#f9cf55"/>
+        <polygon points="90,28 110,55 76,50" fill="#f5b82e"/>
+        <polygon points="10,55 44,50 60,108" fill="#eba91d"/>
+        <polygon points="44,50 76,50 60,108" fill="#f7c544"/>
+        <polygon points="76,50 110,55 60,108" fill="#dc9410"/>
+      </g>
+      <path d="M38 66 Q44 57 50 66 M70 66 Q76 57 82 66" fill="none" stroke="#1c1b22" stroke-width="3.5" stroke-linecap="round"/>
+      <path d="M46 78 Q60 92 74 78" fill="none" stroke="#1c1b22" stroke-width="3.5" stroke-linecap="round"/>
+      <circle cx="36" cy="76" r="5" fill="#f472b6" opacity=".5"/><circle cx="84" cy="76" r="5" fill="#f472b6" opacity=".5"/>
+      <path d="M104 6 Q106 16 116 18 Q106 20 104 30 Q102 20 92 18 Q102 16 104 6Z M12 84 Q13 90 19 91 Q13 92 12 98 Q11 92 5 91 Q11 90 12 84Z" fill="#f5b82e"/>
+    </symbol>
+  </defs>
+</svg>
+
+<header>
+  <div class="wrap">
+    <a class="brand" href="#top"><img src="/favicon.svg" alt="" width="30" height="30">Squint</a>
+    <nav>
+      <a href="#demo">Demo</a>
+      <a class="opt" href="#kinds">Kinds</a>
+      <a href="#integrate">Integrate</a>
+      <a class="opt" href="#safety">Safety</a>
+      <a href="/llms.txt">llms.txt</a>
+    </nav>
+  </div>
+</header>
+
+<main id="top">
+<!-- HERO -->
+<div class="hero">
+  <div class="wrap">
+    <div>
+      <h1>A camera for <span class="grad">headless</span> agents.</h1>
+      <p class="sub">Your agent can't hold a phone. Your human can. Squint turns one API call into a link and a QR code, checks the answer while the human is still standing there, and hands back <span class="gold">JSON instead of a photo</span>.</p>
+      <div class="cta">
+        <a class="btn primary" href="#demo">Try it as the agent</a>
+        <a class="btn" href="#integrate">Add to your agent</a>
+      </div>
+    </div>
+    <div class="stage">
+      <div class="bubble" id="bubble">Hi, I'm Squint. I look at photos so your agent doesn't have to.</div>
+      <svg class="squint" id="hero-squint" data-track viewBox="0 0 200 200" role="img" aria-label="Squint, the one-eyed gem mascot">
+        <ellipse cx="100" cy="188" rx="52" ry="7" fill="#1c1b22" opacity=".12"/>
+        <g stroke="#fff" stroke-opacity=".55" stroke-width="1.5" stroke-linejoin="round">
+          <polygon points="50,50 150,50 130,95 70,95" fill="#a5f3fc"/>
+          <polygon points="50,50 70,95 15,95" fill="#22d3ee"/>
+          <polygon points="150,50 185,95 130,95" fill="#67b7fb"/>
+          <polygon points="15,95 70,95 100,180" fill="#5b8cf5"/>
+          <polygon points="70,95 130,95 100,180" fill="#8b6cf7"/>
+          <polygon points="130,95 185,95 100,180" fill="#7440e0"/>
+        </g>
+        <polygon points="58,55 92,55 80,72 62,72" fill="#fff" opacity=".35"/>
+        <g class="eye" style="transform-origin:100px 104px"><g class="lid">
+          <ellipse cx="100" cy="104" rx="36" ry="29" fill="#fff" stroke="#1c1b22" stroke-width="3"/>
+          <g class="pupil"><circle cx="100" cy="104" r="15" fill="#1c1b22"/><circle cx="105" cy="98" r="5" fill="#fff"/></g>
+        </g></g>
+        <path class="spark" d="M168 18 Q170 30 182 32 Q170 34 168 46 Q166 34 154 32 Q166 30 168 18Z" fill="#f5b82e"/>
+        <g class="bits" fill="#f5b82e"><path d="M22 30 Q23 38 31 39 Q23 40 22 48 Q21 40 13 39 Q21 38 22 30Z"/><path d="M186 120 Q187 126 193 127 Q187 128 186 134 Q185 128 179 127 Q185 126 186 120Z"/></g>
+      </svg>
+      <div class="blurry" id="blurry" tabindex="0" aria-label="A blurry photo with a grumpy grey gem. Hover to see Squint react.">
+        <div class="photo"></div>
+        <svg viewBox="0 0 120 120" aria-hidden="true"><use href="#blur"/></svg>
+        <span>Blur's latest attempt.<br>Hover to show Squint.</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- LIVE DEMO -->
+<section id="demo">
+  <div class="wrap">
+    <h2>Be the agent for a minute</h2>
+    <p class="lede">Pick a kind of ask and create it. Scan the QR code with your phone (or open the link in another tab), do what it says, and watch the JSON land here. The page below is talking to the real API.</p>
+
+    <div class="demo">
+      <div class="card">
+        <label class="t" id="lk">1. What should the human send?</label>
+        <div class="chips" role="group" aria-labelledby="lk" id="chips">
+          <button class="chip" type="button" data-k="photo" aria-pressed="true">Photo</button>
+          <button class="chip" type="button" data-k="location" aria-pressed="false">Location</button>
+          <button class="chip" type="button" data-k="choice" aria-pressed="false">Choice</button>
+          <button class="chip" type="button" data-k="text" aria-pressed="false">Text</button>
+        </div>
+        <label class="t" for="ask">2. The ask (plain language)</label>
+        <input type="text" id="ask" maxlength="200" autocomplete="off">
+        <label class="t">3. What your agent would send</label>
+        <pre class="code" id="body" tabindex="0"></pre>
+        <button class="btn primary" type="button" id="create">Create ask</button>
+        <div class="msg" id="err" role="alert" hidden></div>
+        <p class="note">Beta, no signup. Limited to 30 new asks an hour per IP. Don't type anything private, the ask is shown to whoever opens the link.</p>
+      </div>
+
+      <div class="card" id="out" aria-live="polite">
+        <div class="idle" id="idle">
+          <svg class="squint" data-track viewBox="0 0 200 200" aria-hidden="true" id="idle-squint"></svg>
+          <p>Nothing yet. Create an ask and a QR code shows up here, with a live timeline underneath.</p>
+        </div>
+        <div class="live" id="live">
+          <div class="mini"><svg class="squint" data-track viewBox="0 0 200 200" aria-hidden="true" id="mini-squint"></svg>
+            <div><strong id="stlabel">Waiting</strong><div class="timer" id="timer"></div></div></div>
+          <div class="qrrow">
+            <img class="qr" id="qr" alt="QR code for the ask link" width="148" height="148">
+            <div class="qrinfo">
+              <strong>Scan with your phone</strong>
+              <code class="url" id="url"></code>
+              <div class="acts">
+                <a class="btn small" id="open" target="_blank" rel="noopener">Open here</a>
+                <button class="btn small" type="button" id="copyurl">Copy link</button>
+                <button class="btn small" type="button" id="cancel">Cancel ask</button>
+              </div>
+            </div>
+          </div>
+          <ol class="tl" id="tl"></ol>
+          <div class="msg" id="perr" role="alert" hidden></div>
+          <div id="result">
+            <strong>What your agent gets back</strong>
+            <pre class="code" id="json" tabindex="0"></pre>
+            <p id="tokline"></p>
+            <p class="note" id="toknote"></p>
+          </div>
+          <div class="acts" style="margin-top:14px"><button class="btn small" type="button" id="again" hidden>Start over</button><button class="btn small" type="button" id="retry" hidden>Reconnect</button></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- BEFORE / AFTER -->
+<section id="compare" style="background:#f3ecdc">
+  <div class="wrap">
+    <h2>What changes for your agent</h2>
+    <p class="lede">Asking a human for a photo is a conversation. Every retake is another turn, and every attempt lands in your context as image tokens. Squint moves the retakes to the phone, where the human is, and keeps them out of your context.</p>
+    <div class="grid2" id="cmp">
+      <div class="card panel before">
+        <h3><svg viewBox="0 0 120 120" aria-hidden="true"><use href="#blur"/></svg>Without Squint</h3>
+        <p class="sub2">You receive every photo and judge it yourself.</p>
+        <ol class="tx" aria-label="Transcript of a retake loop">
+          <li style="--i:0"><b>agent</b> Send a photo of the water meter.</li>
+          <li style="--i:1"><b class="h">human</b> <span class="img">photo ~1,500 tok</span></li>
+          <li style="--i:2"><b>agent</b> Too blurry, retake?</li>
+          <li style="--i:3"><b class="h">human</b> <span class="img">photo ~1,500 tok</span></li>
+          <li style="--i:4"><b>agent</b> Digits are cut off. Once more?</li>
+          <li style="--i:5"><b class="h">human</b> <span class="img">photo ~1,500 tok</span></li>
+          <li style="--i:6"><b>agent</b> Got it: 48213.</li>
+          <li class="tot" style="--i:7">3 images in context, 6 turns, about 4,800 tokens</li>
+        </ol>
+      </div>
+      <div class="card panel after">
+        <h3><svg viewBox="0 0 120 120" aria-hidden="true"><use href="#sparkle"/></svg>With Squint</h3>
+        <p class="sub2">One call out, one small JSON back. The retakes happen on the phone.</p>
+        <ol class="tx" aria-label="Transcript of a single Squint call">
+          <li style="--i:0"><b>agent</b> POST /v1/asks {"kind":"photo",</li>
+          <li style="--i:1">&nbsp;&nbsp;"ask":"the water meter",</li>
+          <li style="--i:2">&nbsp;&nbsp;"extract":{"reading":"number"}}</li>
+          <li style="--i:3"><b class="h">phone</b> blurry, retake. cut off, retake. good.</li>
+          <li style="--i:4"><b>squint</b> {"fields":{"reading":48213},</li>
+          <li style="--i:5">&nbsp;&nbsp;"confidence":0.97,"quality":"good"}</li>
+          <li class="tot" style="--i:6">0 images in context, 1 turn, about 60 tokens</li>
+        </ol>
+      </div>
+    </div>
+    <p class="note" style="margin-top:14px">Numbers are illustrative (about 1,500 tokens per phone photo, 120 per extra turn). The demo above shows the estimate for your actual run.</p>
+    <button class="btn small" type="button" id="replay" style="margin-top:10px">Replay</button>
+  </div>
+</section>
+
+<!-- KINDS -->
+<section id="kinds">
+  <div class="wrap">
+    <h2>Four things a phone can give you</h2>
+    <p class="lede">Each one returns a small typed object. Only photos go through vision.</p>
+    <div class="grid4">
+      <div class="card kind">
+        <svg viewBox="0 0 44 44" aria-hidden="true"><polygon points="4,14 14,14 18,8 26,8 30,14 40,14 40,38 4,38" fill="#67b7fb" stroke="#1c1b22" stroke-width="2" stroke-linejoin="round"/><circle cx="22" cy="26" r="8" fill="#fff" stroke="#1c1b22" stroke-width="2"/><circle cx="22" cy="26" r="3.5" fill="#1c1b22"/></svg>
+        <h3>Photo</h3>
+        <p>Claude checks it before the human puts the phone down. Blurry, dark, cropped or the wrong thing means an instant retake.</p>
+        <pre>{"fields":{"reading":48213},
+"description":"Water meter, digits clear",
+"confidence":0.97,"quality":"good"}</pre>
+      </div>
+      <div class="card kind">
+        <svg viewBox="0 0 44 44" aria-hidden="true"><polygon points="22,40 10,22 10,14 16,6 28,6 34,14 34,22" fill="#22d3ee" stroke="#1c1b22" stroke-width="2" stroke-linejoin="round"/><circle cx="22" cy="16" r="5" fill="#fff" stroke="#1c1b22" stroke-width="2"/></svg>
+        <h3>Location</h3>
+        <p>One tap, browser geolocation, with an accuracy figure so you know how much to trust it.</p>
+        <pre>{"lat":52.52,"lng":13.405,
+"accuracy_m":18}</pre>
+      </div>
+      <div class="card kind">
+        <svg viewBox="0 0 44 44" aria-hidden="true"><polygon points="4,8 20,8 20,36 4,36" fill="#8b6cf7" stroke="#1c1b22" stroke-width="2" stroke-linejoin="round"/><polygon points="24,8 40,8 40,36 24,36" fill="#f9cf55" stroke="#1c1b22" stroke-width="2" stroke-linejoin="round"/></svg>
+        <h3>Choice</h3>
+        <p>Two to eight short options as big tap targets. Good for "which one did you mean".</p>
+        <pre>{"choice":"tacos","index":1}</pre>
+      </div>
+      <div class="card kind">
+        <svg viewBox="0 0 44 44" aria-hidden="true"><polygon points="5,6 39,6 39,30 24,30 16,39 16,30 5,30" fill="#a5f3fc" stroke="#1c1b22" stroke-width="2" stroke-linejoin="round"/><path d="M11 14h22M11 21h14" stroke="#1c1b22" stroke-width="2" stroke-linecap="round"/></svg>
+        <h3>Text</h3>
+        <p>A short typed answer, up to 280 characters, with an optional placeholder hint.</p>
+        <pre>{"text":"Leave it with the neighbour"}</pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- INTEGRATE -->
+<section id="integrate" style="background:#f3ecdc">
+  <div class="wrap">
+    <h2>Plug it in</h2>
+    <p class="lede">No signup, no API key. You get a bearer token back when you create an ask, and it only opens that one ask.</p>
+    <div class="tabs" role="tablist" aria-label="Integration options">
+      <button class="tab" role="tab" id="t-curl" aria-controls="p-curl" aria-selected="true" type="button">curl</button>
+      <button class="tab" role="tab" id="t-mcp" aria-controls="p-mcp" aria-selected="false" type="button" tabindex="-1">MCP</button>
+      <button class="tab" role="tab" id="t-ts" aria-controls="p-ts" aria-selected="false" type="button" tabindex="-1">TypeScript</button>
+      <button class="tab" role="tab" id="t-docs" aria-controls="p-docs" aria-selected="false" type="button" tabindex="-1">Docs for agents</button>
+    </div>
+
+    <div class="tabpanel" role="tabpanel" id="p-curl" aria-labelledby="t-curl">
+      <button class="btn small copy" type="button">Copy</button>
+      <p class="cap">Create the ask, show the url to your human, then long-poll for the answer.</p>
+<pre><code># 1. create
+curl -s https://squint.elsisi.workers.dev/v1/asks \
+  -H 'content-type: application/json' \
+  -d '{"kind":"photo","ask":"a clear photo of the water meter",
+       "extract":{"reading":"number: the digits on the meter"}}'
+# -&gt; {"id":"...","url":"https://.../s/...","token":"sq_...","status":"pending",...}
+
+# 2. send `url` to your human, then wait (returns when done, or after 25s)
+curl -s 'https://squint.elsisi.workers.dev/v1/asks/ID?wait=25' \
+  -H 'authorization: Bearer sq_TOKEN'
+# -&gt; {"status":"done","result":{"fields":{"reading":48213},...},"tokens":{...}}</code></pre>
+    </div>
+
+    <div class="tabpanel" role="tabpanel" id="p-mcp" aria-labelledby="t-mcp" hidden>
+      <button class="btn small copy" type="button">Copy</button>
+      <p class="cap">Remote MCP over streamable HTTP. Tools: squint_ask, squint_wait, squint_cancel.</p>
+<pre><code>claude mcp add --transport http squint https://squint.elsisi.workers.dev/mcp</code></pre>
+      <p class="cap" style="margin-top:14px">Other clients: point them at the same URL as a remote HTTP server.</p>
+<pre><code>{ "mcpServers": { "squint": { "type": "http", "url": "https://squint.elsisi.workers.dev/mcp" } } }</code></pre>
+    </div>
+
+    <div class="tabpanel" role="tabpanel" id="p-ts" aria-labelledby="t-ts" hidden>
+      <button class="btn small copy" type="button">Copy</button>
+      <p class="cap">Plain fetch, no SDK. Works in Workers, Node 18+ and Deno.</p>
+<pre><code>const base = "https://squint.elsisi.workers.dev";
+
+const res = await fetch(`${base}/v1/asks`, {
+  method: "POST",
+  headers: { "content-type": "application/json" },
+  body: JSON.stringify({
+    kind: "photo",
+    ask: "a clear photo of the water meter",
+    extract: { reading: "number: the digits on the meter" },
+  }),
+});
+const { id, url, token } = await res.json();
+// tell your human to open `url`, however you talk to them
+
+let ask;
+do {
+  const r = await fetch(`${base}/v1/asks/${id}?wait=25`, {
+    headers: { authorization: `Bearer ${token}` },
+  });
+  ask = await r.json();
+} while (!["done", "expired", "failed"].includes(ask.status));
+
+console.log(ask.result); // { fields: { reading: 48213 }, confidence: 0.97, ... }</code></pre>
+    </div>
+
+    <div class="tabpanel" role="tabpanel" id="p-docs" aria-labelledby="t-docs" hidden>
+      <p class="cap" style="padding-right:0">Everything an agent needs to integrate without reading this page.</p>
+      <ul>
+        <li><a href="/llms.txt">/llms.txt</a> (also at <a href="/agents.md">/agents.md</a>): the short plain-text guide</li>
+        <li><a href="/openapi.json">/openapi.json</a>: the full OpenAPI description</li>
+        <li><code>POST /mcp</code>: the MCP endpoint</li>
+        <li><a href="/healthz">/healthz</a>: liveness</li>
+      </ul>
+      <p class="cap" style="margin-top:14px;padding-right:0">Webhook instead of polling? Pass <code>callback_url</code> (https, public hosts only) when you create the ask.</p>
+    </div>
+  </div>
+</section>
+
+<!-- SAFETY -->
+<section id="safety">
+  <div class="wrap">
+    <div class="sgrid">
+      <div>
+        <h2>What we keep, and what we don't</h2>
+        <ul class="safe" style="margin-top:20px">
+          <li><strong>Photos are never stored.</strong> The image goes to Claude for the check, lives in memory for that one request, and is dropped. It is not written to disk or logged, and your agent never sees it.</li>
+          <li><strong>Sensitive asks are blocked.</strong> Asks for passwords, card numbers, IDs, one-time codes or seed phrases get a 422. The phone page also tells people never to share them, and rejects photos of documents.</li>
+          <li><strong>Links expire.</strong> 15 minutes by default, up to an hour. Finished asks are deleted after 24 hours.</li>
+          <li><strong>Rate limited per IP,</strong> and webhooks only go to public https hosts, with no redirects followed.</li>
+        </ul>
+      </div>
+      <svg viewBox="0 0 120 120" aria-hidden="true"><use href="#sparkle"/></svg>
+    </div>
+  </div>
+</section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div><strong style="color:var(--ink)">Squint</strong> is a beta. Gems: Squint, Blur and Sparkle.</div>
+    <nav>
+      <a href="https://github.com/elsisiem/squint">GitHub</a>
+      <a href="/llms.txt">llms.txt</a>
+      <a href="/openapi.json">openapi.json</a>
+    </nav>
+  </div>
+</footer>
+
+<script>
+(() => {
+  const $ = (s, r = document) => r.querySelector(s);
+  const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const TERMINAL = new Set(['done', 'expired', 'failed']);
+  const safeHttp = u => /^https?:\/\//i.test(u || '');
+
+  // Use this origin in the snippets when we are served from a real host
+  if (/^https?:$/.test(location.protocol) && location.origin !== 'https://squint.elsisi.workers.dev') {
+    $$('.tabpanel code').forEach(c => { c.textContent = c.textContent.split('https://squint.elsisi.workers.dev').join(location.origin); });
+  }
+
+  /* ---------- mascot ---------- */
+  const hero = $('#hero-squint');
+  ['#idle-squint', '#mini-squint'].forEach(sel => { $(sel).innerHTML = hero.innerHTML; });
+  const mood = (svg, m) => { svg.classList.remove('m-squint', 'm-happy'); void svg.getBoundingClientRect(); if (m) svg.classList.add('m-' + m); };
+  const mascots = $$('svg.squint[data-track]');
+
+  addEventListener('pointermove', e => {
+    if (RM) return;
+    for (const m of mascots) {
+      const b = m.getBoundingClientRect();
+      if (!b.width) continue;
+      const dx = e.clientX - (b.left + b.width / 2), dy = e.clientY - (b.top + b.height * .52);
+      const d = Math.hypot(dx, dy) || 1, k = Math.min(1, d / 160);
+      m.style.setProperty('--px', (dx / d * 12 * k).toFixed(1) + 'px');
+      m.style.setProperty('--py', (dy / d * 8 * k).toFixed(1) + 'px');
+    }
+  }, { passive: true });
+
+  const bubble = $('#bubble'), bubbleDefault = bubble.textContent;
+  const blurry = $('#blurry');
+  const squintAt = on => { mood(hero, on ? 'squint' : null); bubble.textContent = on ? 'Mm. Blurry. Retake that one.' : bubbleDefault; };
+  blurry.addEventListener('pointerenter', () => squintAt(true));
+  blurry.addEventListener('pointerleave', () => squintAt(false));
+  blurry.addEventListener('focus', () => squintAt(true));
+  blurry.addEventListener('blur', () => squintAt(false));
+  hero.addEventListener('click', () => { mood(hero, 'happy'); setTimeout(() => mood(hero, null), 1400); });
+
+  /* ---------- transcripts: play when scrolled into view ---------- */
+  const cmp = $('#cmp');
+  const play = () => { $$('.tx', cmp).forEach(t => { t.classList.remove('play'); void t.offsetWidth; t.classList.add('play'); }); };
+  if ('IntersectionObserver' in window) {
+    const io = new IntersectionObserver(es => { if (es[0].isIntersecting) { play(); io.disconnect(); } }, { threshold: .35 });
+    io.observe(cmp);
+  } else play();
+  $('#replay').addEventListener('click', play);
+
+  /* ---------- integrate tabs + copy ---------- */
+  const tabs = $$('.tab');
+  const pick = t => {
+    tabs.forEach(x => {
+      const on = x === t;
+      x.setAttribute('aria-selected', on);
+      x.tabIndex = on ? 0 : -1;
+      $('#' + x.getAttribute('aria-controls')).hidden = !on;
+    });
+    t.focus();
+  };
+  tabs.forEach((t, i) => {
+    t.addEventListener('click', () => pick(t));
+    t.addEventListener('keydown', e => {
+      const j = e.key === 'ArrowRight' ? i + 1 : e.key === 'ArrowLeft' ? i - 1 : -1;
+      if (j >= 0) { e.preventDefault(); pick(tabs[(j + tabs.length) % tabs.length]); }
+    });
+  });
+  async function copyText(text, btn) {
+    try { await navigator.clipboard.writeText(text); }
+    catch {
+      const ta = document.createElement('textarea'); ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); } catch {} ta.remove();
+    }
+    const old = btn.textContent; btn.textContent = 'Copied'; setTimeout(() => { btn.textContent = old; }, 1400);
+  }
+  $$('.tabpanel .copy').forEach(b => b.addEventListener('click', () => copyText($$('pre', b.parentElement).map(p => p.textContent).join('\n\n'), b)));
+
+  /* ---------- live demo ---------- */
+  const PRESETS = {
+    photo: { kind: 'photo', ask: 'a clear photo of any object', extract: { object: 'string: what the main object is' } },
+    location: { kind: 'location', ask: 'where are you right now?' },
+    choice: { kind: 'choice', ask: 'pizza or tacos?', options: ['pizza', 'tacos'] },
+    text: { kind: 'text', ask: 'one word for how today is going', hint: 'one word' },
+  };
+  let kind = 'photo';
+  const askEl = $('#ask'), bodyEl = $('#body'), createBtn = $('#create'), errEl = $('#err');
+
+  // tiny JSON highlighter: tokenise the raw text, escape each piece
+  const hl = obj => JSON.stringify(obj, null, 2).replace(
+    /("(?:\\.|[^\\"])*")(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?|[&<>]/g,
+    (m, str, colon, lit) => str ? `<span class="${colon ? 'k' : 's'}">${esc(str)}</span>${colon || ''}` : lit ? `<span class="b">${m}</span>` : /[&<>]/.test(m) ? esc(m) : `<span class="n">${m}</span>`);
+  const body = () => ({ ...PRESETS[kind], ask: askEl.value.trim() || PRESETS[kind].ask });
+  const showBody = () => { bodyEl.innerHTML = `<span class="c">POST /v1/asks</span>\n` + hl(body()); };
+  function setKind(k) {
+    kind = k;
+    $$('.chip').forEach(c => c.setAttribute('aria-pressed', c.dataset.k === k));
+    askEl.value = PRESETS[k].ask;
+    showBody();
+  }
+  $$('.chip').forEach(c => c.addEventListener('click', () => setKind(c.dataset.k)));
+  askEl.addEventListener('input', showBody);
+  setKind('photo');
+
+  const live = $('#live'), idle = $('#idle'), tl = $('#tl'), perr = $('#perr');
+  const stlabel = $('#stlabel'), timer = $('#timer'), mini = $('#mini-squint');
+  let run = null, tick = null;
+
+  const showErr = (el, msg) => { el.textContent = msg; el.hidden = !msg; };
+  const stop = () => {
+    if (run) { run.dead = true; run.ctrl.abort(); }
+    clearInterval(tick); run = null;
+  };
+  function rateMsg(res, what) {
+    const s = parseInt(res.headers.get('retry-after') || '', 10);
+    const when = s ? ` Try again in about ${Math.max(1, Math.round(s / 60))} min.` : ' Try again in a little while.';
+    return `Rate limit reached (${what}).` + when;
+  }
+
+  createBtn.addEventListener('click', async () => {
+    stop(); showErr(errEl, ''); createBtn.disabled = true; createBtn.textContent = 'Creating...';
+    try {
+      let res;
+      try { res = await fetch('/v1/asks', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body()) }); }
+      catch { return showErr(errEl, 'Could not reach the server. Check your connection and try again.'); }
+      const data = await res.json().catch(() => null);
+      if (res.status === 429) return showErr(errEl, rateMsg(res, '30 new asks an hour per IP while in beta'));
+      if (res.status === 422) return showErr(errEl, (data && data.message) || 'That ask was blocked because it looks like it wants something sensitive.');
+      if (!res.ok || !data || !data.id || !data.token) return showErr(errEl, (data && data.message) || `Something went wrong (HTTP ${res.status}).`);
+      start(data);
+    } finally { createBtn.disabled = false; createBtn.textContent = 'Create ask'; }
+  });
+
+  function start(d) {
+    run = { id: d.id, token: d.token, ctrl: new AbortController(), dead: false, expires: Date.parse(d.expires_at) || 0, status: d.status };
+    idle.style.display = 'none'; live.classList.add('on');
+    $('#qr').src = d.qr_url || `/q/${d.id}.svg`;
+    $('#url').textContent = d.url;
+    const open = $('#open'); if (safeHttp(d.url)) open.href = d.url; else open.removeAttribute('href');
+    $('#result').classList.remove('on');
+    $('#again').hidden = true; $('#retry').hidden = true; $('#cancel').disabled = false; $('#cancel').hidden = false;
+    showErr(perr, '');
+    mood(mini, null);
+    render(d);
+    clearInterval(tick); tick = setInterval(clock, 1000); clock();
+    poll(run);
+  }
+
+  function clock() {
+    if (!run) return;
+    const left = Math.max(0, Math.round((run.expires - Date.now()) / 1000));
+    timer.textContent = TERMINAL.has(run.status) ? '' : run.expires ? `link expires in ${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}` : '';
+  }
+
+  async function poll(r) {
+    let fails = 0;
+    const lost = msg => { if (r.dead) return; showErr(perr, msg); $('#retry').hidden = false; };
+    $('#retry').onclick = () => { $('#retry').hidden = true; showErr(perr, ''); poll(r); };
+    while (!r.dead) {
+      const t0 = Date.now();
+      let res;
+      try { res = await fetch(`/v1/asks/${encodeURIComponent(r.id)}?wait=20`, { headers: { authorization: 'Bearer ' + r.token }, signal: r.ctrl.signal }); }
+      catch { if (r.dead) return; if (++fails >= 5) return lost('Lost the connection to the server.'); await sleep(1000 * fails); continue; }
+      if (r.dead) return;
+      if (res.status === 429) { showErr(perr, 'Polling hit the rate limit. Waiting a few seconds and trying again.'); await sleep(8000); continue; }
+      if (res.status === 404) return lost('The server no longer knows this ask. It may have been cleaned up after expiring.');
+      const v = res.ok ? await res.json().catch(() => null) : null;
+      if (!v) { if (++fails >= 5) return lost(`The server keeps answering with an error (HTTP ${res.status}).`); await sleep(1500 * fails); continue; }
+      fails = 0; showErr(perr, '');
+      r.status = v.status; render(v);
+      if (TERMINAL.has(v.status)) return;
+      const spent = Date.now() - t0;
+      if (spent < 1000) await sleep(1000 - spent); // guard against a server that does not hold the request
+    }
+  }
+
+  const LABEL = { pending: 'Waiting for the link to be opened', opened: 'Someone opened it', done: 'Done', expired: 'Expired', failed: 'Gave up' };
+
+  function render(v) {
+    const log = v.attempt_log || [], term = TERMINAL.has(v.status);
+    const isPhoto = v.kind === 'photo';
+    const steps = [['ok', 'Ask created', `${v.kind} ask, ${v.max_attempts || '?'} attempts allowed`]];
+    const opened = v.opened_at || v.status !== 'pending';
+    if (opened) steps.push(['ok', 'Opened on a phone', '']);
+    else steps.push([term ? 'bad' : 'wait', term ? 'Nobody opened the link' : 'Waiting for the link to be opened', '']);
+    log.forEach(a => steps.push([a.ok ? 'ok' : 'bad', `Attempt ${a.n}: ${a.ok ? 'accepted' : 'rejected'}`, a.issue || '']));
+    if (!term && opened) steps.push(['wait', isPhoto ? (log.length ? 'Waiting for a retake' : 'Waiting for a photo') : 'Waiting for an answer', '']);
+    if (v.status === 'done') steps.push(['ok', 'Done, result delivered', '']);
+    if (v.status === 'expired') steps.push(['bad', 'Expired', 'The link ran out of time or was cancelled.']);
+    if (v.status === 'failed') steps.push(['bad', 'Gave up', `${v.attempts} of ${v.max_attempts} attempts used.`]);
+    tl.innerHTML = steps.map(([c, t, s]) => `<li class="${c}">${esc(t)}${s ? `<small>${esc(s)}</small>` : ''}</li>`).join('');
+
+    stlabel.textContent = LABEL[v.status] || v.status;
+    const last = log[log.length - 1];
+    mood(mini, v.status === 'done' ? 'happy' : (last && !last.ok) || v.status === 'failed' || v.status === 'expired' ? 'squint' : null);
+    if (term) { clearInterval(tick); timer.textContent = ''; $('#cancel').hidden = true; $('#again').hidden = false; }
+
+    const res = $('#result');
+    if (v.status === 'done' && v.result != null) {
+      $('#json').innerHTML = hl(v.result);
+      const t = v.tokens, n = Math.ceil(JSON.stringify(v.result).length / 4);
+      const fmt = x => Number(x).toLocaleString();
+      if (t && t.agent_saw != null && t.raw_image_loop_would_cost != null) {
+        $('#tokline').innerHTML = `Your agent read about <span class="saved">${fmt(t.agent_saw)} tokens</span>. Handling the photos itself would have cost about ${fmt(t.raw_image_loop_would_cost)}` + (t.spared ? `, so roughly ${fmt(t.spared)} were spared.` : '.');
+        $('#toknote').textContent = t.note || '';
+      } else {
+        $('#tokline').innerHTML = `About <span class="saved">${fmt(n)} tokens</span> of JSON. No image involved, so nothing to spare on this kind.`;
+        $('#toknote').textContent = 'Try the photo preset to see the savings estimate.';
+      }
+      res.classList.add('on');
+    } else res.classList.remove('on');
+  }
+
+  $('#copyurl').addEventListener('click', e => copyText($('#url').textContent, e.currentTarget));
+  $('#cancel').addEventListener('click', async e => {
+    if (!run) return;
+    e.currentTarget.disabled = true;
+    try { await fetch(`/v1/asks/${encodeURIComponent(run.id)}`, { method: 'DELETE', headers: { authorization: 'Bearer ' + run.token } }); } catch {}
+    // the running long-poll picks up the new "expired" status within a second
+  });
+  $('#again').addEventListener('click', () => { stop(); live.classList.remove('on'); idle.style.display = ''; showErr(perr, ''); });
+  addEventListener('pagehide', stop);
+})();
+</script>
+</body>
+</html>

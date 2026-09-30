@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200" role="img" aria-label="Squint, a faceted cyan and violet gem with one big eye">
+  <title>Squint</title>
+  <ellipse cx="100" cy="188" rx="52" ry="7" fill="#1c1b22" opacity=".12"/>
+  <g stroke="#fff" stroke-opacity=".55" stroke-width="1.5" stroke-linejoin="round">
+    <polygon points="50,50 150,50 130,95 70,95" fill="#a5f3fc"/>
+    <polygon points="50,50 70,95 15,95" fill="#22d3ee"/>
+    <polygon points="150,50 185,95 130,95" fill="#67b7fb"/>
+    <polygon points="15,95 70,95 100,180" fill="#5b8cf5"/>
+    <polygon points="70,95 130,95 100,180" fill="#8b6cf7"/>
+    <polygon points="130,95 185,95 100,180" fill="#7440e0"/>
+  </g>
+  <polygon points="58,55 92,55 80,72 62,72" fill="#fff" opacity=".35"/>
+  <ellipse cx="100" cy="104" rx="36" ry="29" fill="#fff" stroke="#1c1b22" stroke-width="3"/>
+  <circle cx="100" cy="104" r="15" fill="#1c1b22"/>
+  <circle cx="105" cy="98" r="5" fill="#fff"/>
+  <path d="M168 18 Q170 30 182 32 Q170 34 168 46 Q166 34 154 32 Q166 30 168 18Z" fill="#f5b82e"/>
+</svg>
