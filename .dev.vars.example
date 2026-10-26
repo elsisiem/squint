@@ -1,7 +1,8 @@
-STRIPE_SECRET_KEY=
+# required for photo asks: Anthropic API key used by the vision check
 ANTHROPIC_API_KEY=
+# required: any long random string, used to salt hashed client IPs
 TOKEN_SECRET=
+# optional: only for npm run brainbase
 BRAINBASE_API_KEY=
-ADMIN_SECRET=
-# Local dev: make url/qr_url point at the dev server instead of production
+# optional, local dev only: make url and qr_url point at the dev server
 # PUBLIC_BASE_URL=http://localhost:8787
