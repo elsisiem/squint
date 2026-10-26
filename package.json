@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "description": "A camera for headless agents. Ask a human's phone for a photo, a location, a choice or a short text, and get typed JSON back.",
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
