@@ -201,6 +201,56 @@ function imageMime(b64: string): string | null {
 
 const bad = (message: string, http = 400): Submit => ({ http, body: { error: "invalid_submission", message } });
 
+/** One capture judged: either malformed input (no attempt burned), an infrastructure
+ *  hiccup (no attempt burned, retryable), or a verdict with an optional extracted result. */
+export type Evaluated =
+  | { t: "bad"; message: string; http: number }
+  | { t: "unavailable"; message: string }
+  | { t: "judged"; result: unknown | null; issue: string | null; img?: number };
+
+/** Validate and judge one capture of the given kind. Pure except for the vision call. */
+export async function evaluateCapture(
+  env: Env,
+  kind: Exclude<AskKind, "sequence">,
+  spec: Spec,
+  ask: string,
+  raw: any,
+): Promise<Evaluated> {
+  if (kind === "photo") {
+    const image = typeof raw.image === "string" ? raw.image.replace(/^data:[^,]*,/, "").replace(/\s/g, "") : "";
+    if (!image) return { t: "bad", message: "image (base64 JPEG) is required.", http: 400 };
+    if (Math.floor((image.length * 3) / 4) > MAX_IMAGE_BYTES) return { t: "bad", message: "Image too large (max 1.5 MB). Please retake.", http: 413 };
+    const mime = imageMime(image);
+    if (!mime) return { t: "judged", result: null, issue: "That file doesn't look like a photo. Please take a new one." };
+    const w = clamp(Math.round(Number(raw.width)) || 1280, 1, 8000);
+    const h = clamp(Math.round(Number(raw.height)) || 960, 1, 8000);
+    const img = imageTokens(w, h);
+    if (await overLimit(env, `global:vision:${new Date().toISOString().slice(0, 10)}`, GLOBAL_VISION_PER_DAY, 25 * HOUR)) {
+      return { t: "unavailable", message: "Squint is at capacity for today. Please try again tomorrow." };
+    }
+    const j = await judgePhoto(env, { ask, extract: parseExtract(spec.extract), image, mediaType: mime });
+    if (j.state === "error") return { t: "unavailable", message: j.message };
+    if (j.ok) return { t: "judged", result: { fields: j.fields, description: j.description, confidence: j.confidence, quality: j.quality }, issue: null, img };
+    return { t: "judged", result: null, issue: j.issue ?? "Please try another photo.", img };
+  }
+  if (kind === "location") {
+    const lat = Number(raw.lat), lng = Number(raw.lng), acc = Number(raw.accuracy_m ?? 0);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180 || !Number.isFinite(acc) || acc < 0) {
+      return { t: "bad", message: "lat, lng and accuracy_m must be valid numbers.", http: 400 };
+    }
+    return { t: "judged", result: { lat: Math.round(lat * 1e6) / 1e6, lng: Math.round(lng * 1e6) / 1e6, accuracy_m: Math.round(acc) }, issue: null };
+  }
+  if (kind === "choice") {
+    const i = raw.index, opts = spec.options ?? [];
+    if (!Number.isInteger(i) || i < 0 || i >= opts.length) return { t: "bad", message: "index is out of range.", http: 400 };
+    return { t: "judged", result: { choice: opts[i], index: i }, issue: null };
+  }
+  // eslint-disable-next-line no-control-regex
+  const text = typeof raw.text === "string" ? raw.text.replace(/[\u0000-\u0008\u000b-\u001f\u007f]/g, "").trim() : "";
+  if (!text || text.length > 280) return { t: "bad", message: "text must be 1-280 characters.", http: 400 };
+  return { t: "judged", result: { text }, issue: null };
+}
+
 /** Validate a human submission and (for photos) run vision. */
 export async function submitAttempt(env: Env, id: string, raw: any, waitUntil: (p: Promise<unknown>) => void): Promise<Submit> {
   const r0 = await loadRow(env, id);
@@ -216,46 +266,10 @@ export async function submitAttempt(env: Env, id: string, raw: any, waitUntil: (
   if (!raw || typeof raw !== "object") return bad("Body must be a JSON object.");
 
   const spec = parse<Spec>(r.spec, {});
-  let result: unknown = null;
-  let issue: string | null = null;
-  let img: number | undefined;
-
-  if (r.kind === "photo") {
-    let image = typeof raw.image === "string" ? raw.image.replace(/^data:[^,]*,/, "").replace(/\s/g, "") : "";
-    if (!image) return bad("image (base64 JPEG) is required.");
-    if (Math.floor((image.length * 3) / 4) > MAX_IMAGE_BYTES) return bad("Image too large (max 1.5 MB). Please retake.", 413);
-    const mime = imageMime(image);
-    if (!mime) {
-      issue = "That file doesn't look like a photo. Please take a new one.";
-    } else {
-      const w = clamp(Math.round(Number(raw.width)) || 1280, 1, 8000);
-      const h = clamp(Math.round(Number(raw.height)) || 960, 1, 8000);
-      img = imageTokens(w, h);
-      if (await overLimit(env, `global:vision:${new Date().toISOString().slice(0, 10)}`, GLOBAL_VISION_PER_DAY, 25 * HOUR)) {
-        return { http: 503, body: out("failed", "Squint is at capacity for today. Please try again tomorrow.", r.attempts, { retryable: true }) };
-      }
-      const j = await judgePhoto(env, { ask: r.ask, extract: parseExtract(spec.extract), image, mediaType: mime });
-      if (j.state === "error") {
-        // Infrastructure failure: do not burn an attempt, let the human retry.
-        return { http: 503, body: out("failed", j.message, r.attempts, { retryable: true }) };
-      }
-      if (j.ok) result = { fields: j.fields, description: j.description, confidence: j.confidence, quality: j.quality };
-      else issue = j.issue ?? "Please try another photo.";
-    }
-  } else if (r.kind === "location") {
-    const lat = Number(raw.lat), lng = Number(raw.lng), acc = Number(raw.accuracy_m ?? 0);
-    if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180 || !Number.isFinite(acc) || acc < 0) return bad("lat, lng and accuracy_m must be valid numbers.");
-    result = { lat: Math.round(lat * 1e6) / 1e6, lng: Math.round(lng * 1e6) / 1e6, accuracy_m: Math.round(acc) };
-  } else if (r.kind === "choice") {
-    const i = raw.index, opts = spec.options ?? [];
-    if (!Number.isInteger(i) || i < 0 || i >= opts.length) return bad("index is out of range.");
-    result = { choice: opts[i], index: i };
-  } else {
-    // eslint-disable-next-line no-control-regex
-    const text = typeof raw.text === "string" ? raw.text.replace(/[\u0000-\u0008\u000b-\u001f\u007f]/g, "").trim() : "";
-    if (!text || text.length > 280) return bad("text must be 1-280 characters.");
-    result = { text };
-  }
+  const ev = await evaluateCapture(env, r.kind as Exclude<AskKind, "sequence">, spec, r.ask, raw);
+  if (ev.t === "bad") return bad(ev.message, ev.http);
+  if (ev.t === "unavailable") return { http: 503, body: out("failed", ev.message, r.attempts, { retryable: true }) };
+  const { result, issue, img } = ev;
 
   // Optimistic concurrency: only the submit that saw `attempts` == current may write.
   const n = r.attempts + 1;
