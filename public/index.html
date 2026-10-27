@@ -274,6 +274,7 @@ footer nav a{color:var(--ink)}
           <button class="chip" type="button" data-k="location" aria-pressed="false">Location</button>
           <button class="chip" type="button" data-k="choice" aria-pressed="false">Choice</button>
           <button class="chip" type="button" data-k="text" aria-pressed="false">Text</button>
+          <button class="chip" type="button" data-k="sequence" aria-pressed="false">Sequence</button>
         </div>
         <label class="t" for="ask">2. The ask (plain language)</label>
         <input type="text" id="ask" maxlength="200" autocomplete="off">
@@ -626,6 +627,11 @@ console.log(ask.result); // { fields: { reading: 48213 }, confidence: 0.97, ... 
     location: { kind: 'location', ask: 'where are you right now?' },
     choice: { kind: 'choice', ask: 'pizza or tacos?', options: ['pizza', 'tacos'] },
     text: { kind: 'text', ask: 'one word for how today is going', hint: 'one word' },
+    sequence: { kind: 'sequence', ask: 'Quick spot check', steps: [
+      { kind: 'choice', ask: 'Where are you right now?', options: ['Home', 'Office', 'Out somewhere'] },
+      { kind: 'text', ask: 'What can you see out the nearest window?', hint: 'one short sentence' },
+      { kind: 'location', ask: 'And where exactly is that?' },
+    ] },
   };
   let kind = 'photo';
   const askEl = $('#ask'), bodyEl = $('#body'), createBtn = $('#create'), errEl = $('#err');
@@ -723,10 +729,11 @@ console.log(ask.result); // { fields: { reading: 48213 }, confidence: 0.97, ... 
   function render(v) {
     const log = v.attempt_log || [], term = TERMINAL.has(v.status);
     const isPhoto = v.kind === 'photo';
-    const steps = [['ok', 'Ask created', `${v.kind} ask, ${v.max_attempts || '?'} attempts allowed`]];
+    const steps = [['ok', 'Ask created', `${v.kind} ask, ${v.max_attempts || '?'} attempts allowed${v.kind === 'sequence' ? ' per step' : ''}`]];
     const opened = v.opened_at || v.status !== 'pending';
     if (opened) steps.push(['ok', 'Opened on a phone', '']);
     else steps.push([term ? 'bad' : 'wait', term ? 'Nobody opened the link' : 'Waiting for the link to be opened', '']);
+    if (v.steps) steps.push([v.steps.done >= v.steps.total ? 'ok' : 'wait', `Checklist: ${v.steps.done} of ${v.steps.total} steps done`, '']);
     log.forEach(a => steps.push([a.ok ? 'ok' : 'bad', `Attempt ${a.n}: ${a.ok ? 'accepted' : 'rejected'}`, a.issue || '']));
     if (!term && opened) steps.push(['wait', isPhoto ? (log.length ? 'Waiting for a retake' : 'Waiting for a photo') : 'Waiting for an answer', '']);
     if (v.status === 'done') steps.push(['ok', 'Done, result delivered', '']);
