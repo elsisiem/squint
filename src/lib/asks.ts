@@ -179,7 +179,7 @@ export async function createAsk(env: Env, input: unknown, ip: string): Promise<{
   const id = randomId(16);
   const token = randomToken();
   const t = now();
-  const spec: Spec = { extract: v.extract, options: v.options, hint: v.hint };
+  const spec: Spec = { extract: v.extract, options: v.options, hint: v.hint, steps: v.steps };
   await env.DB.prepare(
     `INSERT INTO asks (id,token_hash,kind,ask,spec,status,attempts,max_attempts,attempt_log,callback_url,ip_hash,created_at,expires_at)
      VALUES (?,?,?,?,?,'pending',0,?,'[]',?,?,?,?)`,

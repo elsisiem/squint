@@ -36,6 +36,8 @@ h1{font-family:var(--display); font-size:1.5rem; line-height:1.22; margin:0; fon
 .msg{font-size:1.4rem; line-height:1.3; font-weight:700; margin:0; overflow-wrap:anywhere; min-height:1.2em}
 .msg:empty{display:none}
 .msg:not(.bad):not(.good){font-size:1.02rem;font-weight:500;color:var(--muted)}
+.seq{font-size:.85rem;color:var(--muted);font-weight:650;letter-spacing:.03em;margin:0}
+.seq b{color:var(--ink)}
 .msg.bad{color:var(--bad)} .msg.good{color:var(--good)}
 .sub{color:var(--muted); font-size:.95rem; margin:0}
 .spin{display:flex; gap:7px; justify-content:center; height:14px}
@@ -158,6 +160,7 @@ label.lbl{text-align:left; font-weight:650; font-size:.95rem}
     </svg>
   </div>
 
+  <p class="seq" id="seqline" hidden></p>
   <h1 id="title" dir="auto"></h1>
   <p class="msg" id="msg" role="status" aria-live="polite"></p>
   <div class="spin" id="spin" hidden aria-hidden="true"><i></i><i></i><i></i></div>
@@ -287,6 +290,18 @@ function activeView(issue, tone) {
   busy = false;
 }
 
+function stepDoneView(seq) {
+  // one step down, more to go: flash the win, then load the next step fresh
+  ui({ mood: 'wide', title: 'Got it.', msg: 'Step ' + seq.done + ' of ' + seq.total + ' done.', tone: 'good',
+       thumb: $('thumb').dataset.has === '1' ? 'good' : null });
+  setTimeout(() => {
+    $('thumb').dataset.has = ''; $('thumb').removeAttribute('src');
+    $('txt').value = ''; $('cnt').textContent = '0 / 280';
+    lastPayload = null;
+    boot();
+  }, 1100);
+}
+
 function doneView(already) {
   ui({
     mood: 'wide', title: already ? 'Already done' : 'Got it.',
@@ -341,7 +356,16 @@ async function boot() {
     return problem((r.data && r.data.message) || 'Something went wrong. Please try again.', boot);
   }
   ask = r.data; attempts = ask.attempts || 0;
-  document.title = 'Squint: ' + ask.ask;
+  const sq = ask.seq;
+  const sl = $('seqline');
+  sl.hidden = !sq;
+  if (sq) {
+    sl.textContent = '';
+    const b = document.createElement('b'); b.textContent = sq.title;
+    sl.appendChild(b);
+    sl.appendChild(document.createTextNode(' · step ' + (sq.index + 1) + ' of ' + sq.total));
+  }
+  document.title = 'Squint: ' + (sq ? sq.title : ask.ask);
   if (ask.status === 'expired') return expiredView();
   if (ask.status === 'done') return doneView(true);
   if (ask.status === 'failed') return failedView(ask.last_issue);
@@ -373,7 +397,10 @@ function handleResult({ res, data }) {
   if (st === 'accepted' || st === 'rejected' || st === 'failed' || st === 'expired') {
     if (typeof data.attempts === 'number') attempts = data.attempts;
     if (typeof data.max_attempts === 'number') ask.max_attempts = data.max_attempts;
-    if (st === 'accepted') return doneView(false);
+    if (st === 'accepted') {
+      if (data.seq && data.seq.done < data.seq.total) return stepDoneView(data.seq);
+      return doneView(false);
+    }
     if (st === 'expired') return expiredView();
     if (st === 'rejected') return activeView(data.feedback || 'That did not work. Please try again.', 'bad');
     // "failed": terminal once tries are used up, otherwise a retryable hiccup that did not burn an attempt
