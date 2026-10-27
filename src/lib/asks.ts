@@ -5,11 +5,14 @@ import { safeWebhook, sensitiveMatch } from "./guard";
 import { judgePhoto, parseExtract } from "./vision";
 import { deliverCallback } from "./deliver";
 
-export type AskKind = "photo" | "location" | "choice" | "text";
-export interface CreateAskInput { kind: AskKind; ask: string; extract?: Record<string, string>; options?: string[]; hint?: string; ttl_seconds?: number; max_attempts?: number; callback_url?: string }
+export type AskKind = "photo" | "location" | "choice" | "text" | "sequence";
+export type StepKind = Exclude<AskKind, "sequence">;
+export interface StepInput { kind: StepKind; ask: string; extract?: Record<string, string>; options?: string[]; hint?: string }
+export interface CreateAskInput { kind: AskKind; ask: string; extract?: Record<string, string>; options?: string[]; hint?: string; steps?: StepInput[]; ttl_seconds?: number; max_attempts?: number; callback_url?: string }
 export interface AskView {
   id: string; status: "pending" | "opened" | "done" | "expired" | "failed"; kind: AskKind; ask: string;
   url: string; qr_url: string; wait_url: string; attempts: number; max_attempts: number;
+  steps?: { done: number; total: number };
   attempt_log: { n: number; ok: boolean; issue: string | null }[]; result: any | null;
   expires_at: string; created_at: string; opened_at: string | null; done_at: string | null;
   tokens: { agent_saw: number | null; raw_image_loop_would_cost: number | null; spared: number | null; note: string } | null;
@@ -20,8 +23,8 @@ interface Row {
   attempts: number; max_attempts: number; attempt_log: string; result: string | null; callback_url: string | null;
   image_tokens_spared: number; created_at: number; opened_at: number | null; done_at: number | null; expires_at: number;
 }
-interface LogEntry { n: number; ok: boolean; issue: string | null; at: number; img?: number }
-interface Spec { extract?: Record<string, string>; options?: string[]; hint?: string }
+interface LogEntry { n: number; ok: boolean; issue: string | null; at: number; img?: number; step?: number; res?: unknown }
+interface Spec { extract?: Record<string, string>; options?: string[]; hint?: string; steps?: StepInput[] }
 
 const TERMINAL = new Set(["done", "expired", "failed"]);
 const MAX_IMAGE_BYTES = 1.5 * 1024 * 1024;
@@ -31,13 +34,22 @@ const GLOBAL_VISION_PER_DAY = 1500;
 
 // ---------- validation ----------
 
-const createSchema = z.object({
+const extractSchema = z.record(z.string().regex(/^[A-Za-z_][A-Za-z0-9_]{0,39}$/, "field names must be identifiers"), z.string().trim().min(1).max(240))
+  .refine((o) => Object.keys(o).length <= 8, "at most 8 extract fields");
+const stepSchema = z.object({
   kind: z.enum(["photo", "location", "choice", "text"]),
   ask: z.string().trim().min(3).max(300),
-  extract: z.record(z.string().regex(/^[A-Za-z_][A-Za-z0-9_]{0,39}$/, "field names must be identifiers"), z.string().trim().min(1).max(240))
-    .refine((o) => Object.keys(o).length <= 8, "at most 8 extract fields").optional(),
+  extract: extractSchema.optional(),
   options: z.array(z.string().trim().min(1).max(60)).min(2).max(8).optional(),
   hint: z.string().trim().max(120).optional(),
+});
+const createSchema = z.object({
+  kind: z.enum(["photo", "location", "choice", "text", "sequence"]),
+  ask: z.string().trim().min(3).max(300),
+  extract: extractSchema.optional(),
+  options: z.array(z.string().trim().min(1).max(60)).min(2).max(8).optional(),
+  hint: z.string().trim().max(120).optional(),
+  steps: z.array(stepSchema).min(2).max(6).optional(),
   ttl_seconds: z.number().int().min(60).max(3600).default(900),
   max_attempts: z.number().int().min(1).max(8).default(5),
   callback_url: z.string().trim().max(500).optional(),
@@ -56,9 +68,22 @@ export function parseCreateInput(input: unknown): ParsedCreate {
   }
   const v: Parsed = p.data;
   if (v.kind === "choice" && !v.options) return { ok: false, status: 400, error: "invalid_request", message: "options: required (2-8 strings) for kind 'choice'" };
+  if (v.kind === "sequence") {
+    if (!v.steps) return { ok: false, status: 400, error: "invalid_request", message: "steps: required (2-6 steps) for kind 'sequence'" };
+    for (const [i, st] of v.steps.entries()) {
+      if (st.kind === "choice" && !st.options) return { ok: false, status: 400, error: "invalid_request", message: `steps.${i}.options: required (2-8 strings) for kind 'choice'` };
+      if (st.kind !== "photo") delete st.extract;
+      if (st.kind !== "choice") delete st.options;
+    }
+    delete v.extract;
+    delete v.options;
+  } else {
+    delete v.steps;
+  }
   if (v.kind !== "photo") delete v.extract;
   if (v.kind !== "choice") delete v.options;
-  const hit = sensitiveMatch([v.ask, v.hint, ...(v.options ?? []), ...Object.entries(v.extract ?? {}).flat()]);
+  const stepTexts = (v.steps ?? []).flatMap((st) => [st.ask, st.hint, ...(st.options ?? []), ...Object.entries(st.extract ?? {}).flat()]);
+  const hit = sensitiveMatch([v.ask, v.hint, ...(v.options ?? []), ...Object.entries(v.extract ?? {}).flat(), ...stepTexts]);
   if (hit) {
     return { ok: false, status: 422, error: "sensitive_request", message: `Squint won't ask people for "${hit}": credentials, card numbers and ID documents are blocked.` };
   }
@@ -86,6 +111,23 @@ export function tokenAccounting(imgTokens: number[], result: unknown | null): No
   };
 }
 
+// ---------- sequence bookkeeping ----------
+
+export interface SeqProgress { current: number; total: number; stepAttempts: number; results: unknown[] }
+
+/** Where a sequence stands, derived from the attempt log alone. */
+export function seqProgress(log: { ok: boolean; step?: number; res?: unknown }[], total: number): SeqProgress {
+  const okEntries = log.filter((e) => e.ok);
+  const current = Math.min(okEntries.length, Math.max(0, total - 1));
+  const done = okEntries.length;
+  return {
+    current: Math.min(done, total - 1),
+    total,
+    stepAttempts: log.filter((e) => !e.ok && (e.step ?? 0) === Math.min(done, total - 1)).length,
+    results: okEntries.map((e) => e.res ?? null),
+  };
+}
+
 // ---------- views ----------
 
 const base = (env: Env) => env.PUBLIC_BASE_URL.replace(/\/$/, "");
@@ -94,15 +136,18 @@ const parse = <T>(s: string | null, d: T): T => { try { return s ? (JSON.parse(s
 function toView(env: Env, r: Row): AskView {
   const log = parse<LogEntry[]>(r.attempt_log, []);
   const result = parse<any>(r.result, null);
+  const spec = parse<Spec>(r.spec, {});
+  const seq = r.kind === "sequence" ? { done: log.filter((e) => e.ok).length, total: (spec.steps ?? []).length } : undefined;
   return {
     id: r.id, status: r.status, kind: r.kind, ask: r.ask,
     url: `${base(env)}/s/${r.id}`, qr_url: `${base(env)}/q/${r.id}.svg`, wait_url: `${base(env)}/v1/asks/${r.id}?wait=25`,
     attempts: r.attempts, max_attempts: r.max_attempts,
     attempt_log: log.map((e) => ({ n: e.n, ok: e.ok, issue: e.issue })),
     result,
+    ...(seq ? { steps: seq } : {}),
     expires_at: iso(r.expires_at), created_at: iso(r.created_at),
     opened_at: r.opened_at ? iso(r.opened_at) : null, done_at: r.done_at ? iso(r.done_at) : null,
-    tokens: r.kind === "photo" ? tokenAccounting(log.filter((e) => e.img != null).map((e) => e.img!), result) : null,
+    tokens: r.kind === "photo" || r.kind === "sequence" ? tokenAccounting(log.filter((e) => e.img != null).map((e) => e.img!), result) : null,
   };
 }
 
@@ -179,6 +224,18 @@ export async function publicView(env: Env, id: string) {
   }
   const spec = parse<Spec>(r.spec, {});
   const log = parse<LogEntry[]>(r.attempt_log, []);
+  if (r.kind === "sequence") {
+    const steps = spec.steps ?? [];
+    const prog = seqProgress(log, steps.length);
+    const step = steps[prog.current];
+    const last = [...log].reverse().find((e) => !e.ok && (e.step ?? 0) === prog.current);
+    return {
+      id: r.id, kind: step?.kind ?? "text", ask: step?.ask ?? r.ask, hint: step?.hint ?? null, options: step?.options ?? null,
+      status: r.status, attempts: prog.stepAttempts, max_attempts: r.max_attempts, expires_at: iso(r.expires_at),
+      extract_fields: Object.keys(step?.extract ?? {}), last_issue: last?.issue ?? null,
+      seq: { index: prog.current, total: steps.length, done: log.filter((e) => e.ok).length, title: r.ask },
+    };
+  }
   const last = [...log].reverse().find((e) => !e.ok);
   return {
     id: r.id, kind: r.kind, ask: r.ask, hint: spec.hint ?? null, options: spec.options ?? null,
@@ -187,7 +244,7 @@ export async function publicView(env: Env, id: string) {
   };
 }
 
-export interface SubmitBody { status: "accepted" | "rejected" | "failed" | "expired"; feedback: string | null; attempts: number; max_attempts: number; squint: "happy" | "squint" | "sad"; retryable?: boolean }
+export interface SubmitBody { status: "accepted" | "rejected" | "failed" | "expired"; feedback: string | null; attempts: number; max_attempts: number; squint: "happy" | "squint" | "sad"; retryable?: boolean; seq?: { done: number; total: number } }
 type Submit = { http: number; body: SubmitBody | { error: string; message: string } };
 
 function imageMime(b64: string): string | null {
@@ -266,39 +323,59 @@ export async function submitAttempt(env: Env, id: string, raw: any, waitUntil: (
   if (!raw || typeof raw !== "object") return bad("Body must be a JSON object.");
 
   const spec = parse<Spec>(r.spec, {});
-  const ev = await evaluateCapture(env, r.kind as Exclude<AskKind, "sequence">, spec, r.ask, raw);
+  const log = parse<LogEntry[]>(r.attempt_log, []);
+  const isSeq = r.kind === "sequence";
+  const steps = spec.steps ?? [];
+  const prog = isSeq ? seqProgress(log, steps.length) : null;
+  const step = prog ? steps[prog.current] : null;
+  if (isSeq && !step) return { http: 200, body: out("accepted", "Already done. You can close this page.") };
+
+  const ev = await evaluateCapture(
+    env,
+    (isSeq ? step!.kind : r.kind) as StepKind,
+    isSeq ? step! : spec,
+    isSeq ? step!.ask : r.ask,
+    raw,
+  );
   if (ev.t === "bad") return bad(ev.message, ev.http);
-  if (ev.t === "unavailable") return { http: 503, body: out("failed", ev.message, r.attempts, { retryable: true }) };
+  if (ev.t === "unavailable") return { http: 503, body: out("failed", ev.message, prog ? prog.stepAttempts : r.attempts, { retryable: true }) };
   const { result, issue, img } = ev;
 
   // Optimistic concurrency: only the submit that saw `attempts` == current may write.
   const n = r.attempts + 1;
-  const log = parse<LogEntry[]>(r.attempt_log, []);
-  log.push({ n, ok: result != null, issue, at: now(), ...(img != null ? { img } : {}) });
-  const done = result != null;
-  const exhausted = !done && n >= r.max_attempts;
+  const okNow = result != null;
+  log.push({ n, ok: okNow, issue, at: now(), ...(img != null ? { img } : {}), ...(isSeq ? { step: prog!.current, ...(okNow ? { res: result } : {}) } : {}) });
+  const okCount = isSeq ? log.filter((e) => e.ok).length : 0;
+  const done = isSeq ? okNow && okCount >= steps.length : okNow;
+  const attemptsShown = isSeq ? (okNow ? 0 : prog!.stepAttempts + 1) : n;
+  const exhausted = !okNow && (isSeq ? prog!.stepAttempts + 1 : n) >= r.max_attempts;
   const status = done ? "done" : exhausted ? "failed" : r.status;
   const t = now();
-  const tok = r.kind === "photo" && done ? tokenAccounting(log.filter((e) => e.img != null).map((e) => e.img!), result) : null;
+  const finalResult = !done ? null : isSeq
+    ? { steps: steps.map((st, i) => ({ kind: st.kind, ask: st.ask, result: log.filter((e) => e.ok)[i]?.res ?? null })) }
+    : result;
+  const tok = (r.kind === "photo" || isSeq) && done ? tokenAccounting(log.filter((e) => e.img != null).map((e) => e.img!), finalResult) : null;
   const res = await env.DB.prepare(
     `UPDATE asks SET attempts=?, attempt_log=?, status=?, result=?, done_at=?, image_tokens_spared=?
      WHERE id=? AND attempts=? AND status IN ('pending','opened') AND expires_at>?`,
-  ).bind(n, JSON.stringify(log), status, done ? JSON.stringify(result) : null, done ? t : null, tok?.spared ?? 0, id, r.attempts, t).run();
+  ).bind(n, JSON.stringify(log), status, done ? JSON.stringify(finalResult) : null, done ? t : null, tok?.spared ?? 0, id, r.attempts, t).run();
   if (!res.meta.changes) {
     const cur = await loadRow(env, id); // lost a race, or expired while vision ran
     const s = cur ? (await withExpiry(env, cur)).status : "expired";
     return { http: 200, body: out(s === "done" ? "accepted" : s === "failed" ? "failed" : "expired", s === "done" ? "Already done. You can close this page." : "This request is no longer open.", cur?.attempts ?? r.attempts) };
   }
 
+  const seqInfo = isSeq ? { seq: { done: okCount, total: steps.length } } : {};
   if (done) {
     if (r.callback_url) {
       const view = toView(env, (await loadRow(env, id))!);
       waitUntil(deliverCallback(env, id, r.callback_url, { id, kind: r.kind, status: "done", result: view.result, tokens: view.tokens, done_at: view.done_at }));
     }
-    return { http: 200, body: out("accepted", null, n) };
+    return { http: 200, body: out("accepted", null, attemptsShown, seqInfo) };
   }
-  if (exhausted) return { http: 200, body: out("failed", `${issue ?? "That didn't work"} No attempts left: ask your agent for a new link.`, n) };
-  return { http: 200, body: out("rejected", issue, n) };
+  if (isSeq && okNow) return { http: 200, body: out("accepted", null, 0, seqInfo) };
+  if (exhausted) return { http: 200, body: out("failed", `${issue ?? "That didn't work"} No attempts left: ask your agent for a new link.`, attemptsShown) };
+  return { http: 200, body: out("rejected", issue, attemptsShown, seqInfo) };
 }
 
 // ---------- cron ----------

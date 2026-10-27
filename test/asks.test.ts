@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { agentSawTokens, imageTokens, parseCreateInput, tokenAccounting } from "../src/lib/asks";
+import { agentSawTokens, evaluateCapture, imageTokens, parseCreateInput, seqProgress, tokenAccounting } from "../src/lib/asks";
 import { coerceFields, interpretVerdict, judgePhoto, parseExtract } from "../src/lib/vision";
 import { qrSvg } from "../src/lib/qr";
 
@@ -145,5 +145,75 @@ describe("vision prompt", () => {
     expect(sent.system).toMatch(/request itself is about a person/);
     expect(sent.system).toMatch(/never use the safety rejection for faces/);
     expect(sent.messages[0].content[1].text).toContain("a selfie");
+  });
+});
+
+describe("sequence validation", () => {
+  const steps = [
+    { kind: "photo", ask: "the odometer", extract: { km: "number: the reading" } },
+    { kind: "photo", ask: "the left side of the car" },
+    { kind: "location", ask: "where the car is parked" },
+  ];
+  it("accepts a sequence and strips top-level extract/options", () => {
+    const v = ok({ kind: "sequence", ask: "Vehicle pickup check-in", steps, extract: { x: "string" }, options: ["a", "b"] });
+    expect(v.steps).toHaveLength(3);
+    expect(v.extract).toBeUndefined();
+    expect(v.options).toBeUndefined();
+  });
+  it("requires steps, 2 to 6 of them", () => {
+    expect(fail({ kind: "sequence", ask: "a checklist" }).message).toMatch(/steps/);
+    expect(fail({ kind: "sequence", ask: "a checklist", steps: steps.slice(0, 1) }).status).toBe(400);
+    expect(fail({ kind: "sequence", ask: "a checklist", steps: Array(7).fill(steps[1]) }).status).toBe(400);
+  });
+  it("applies per-step rules", () => {
+    expect(fail({ kind: "sequence", ask: "a checklist", steps: [steps[0], { kind: "choice", ask: "which bay" }] }).message).toMatch(/options/);
+    const v = ok({ kind: "sequence", ask: "a checklist", steps: [steps[0], { kind: "text", ask: "any damage to note?", extract: { x: "string" } }] });
+    expect(v.steps![1].extract).toBeUndefined();
+  });
+  it("blocks sensitive text anywhere in the steps", () => {
+    expect(fail({ kind: "sequence", ask: "a checklist", steps: [steps[0], { kind: "photo", ask: "your passport" }] }).status).toBe(422);
+  });
+  it("strips steps from single-capture asks", () => {
+    const v = ok({ kind: "photo", ask: "a clear photo of the meter", steps });
+    expect(v.steps).toBeUndefined();
+  });
+});
+
+describe("sequence progress", () => {
+  it("walks steps and counts per-step attempts", () => {
+    const total = 3;
+    let log: { ok: boolean; step?: number; res?: unknown }[] = [];
+    expect(seqProgress(log, total)).toMatchObject({ current: 0, stepAttempts: 0, results: [] });
+    log.push({ ok: false, step: 0 });
+    expect(seqProgress(log, total)).toMatchObject({ current: 0, stepAttempts: 1 });
+    log.push({ ok: true, step: 0, res: { fields: { km: 48213 } } });
+    expect(seqProgress(log, total)).toMatchObject({ current: 1, stepAttempts: 0 });
+    log.push({ ok: false, step: 1 });
+    log.push({ ok: true, step: 1, res: { fields: {} } });
+    log.push({ ok: true, step: 2, res: { lat: 1, lng: 2, accuracy_m: 3 } });
+    const p = seqProgress(log, total);
+    expect(p.results).toHaveLength(3);
+    expect(p.results[2]).toMatchObject({ lat: 1 });
+  });
+  it("failures before the first success belong to step 0", () => {
+    const log = [{ ok: false, step: 0 }, { ok: false, step: 0 }];
+    expect(seqProgress(log, 2)).toMatchObject({ current: 0, stepAttempts: 2 });
+  });
+});
+
+describe("evaluateCapture without vision", () => {
+  const env = {} as any;
+  it("judges location, choice and text", async () => {
+    expect(await evaluateCapture(env, "location", {}, "where", { lat: 52.52, lng: 13.405, accuracy_m: 18 }))
+      .toMatchObject({ t: "judged", result: { lat: 52.52, lng: 13.405, accuracy_m: 18 } });
+    expect(await evaluateCapture(env, "choice", { options: ["a", "b"] }, "which", { index: 1 }))
+      .toMatchObject({ t: "judged", result: { choice: "b", index: 1 } });
+    expect(await evaluateCapture(env, "text", {}, "say", { text: " hi " }))
+      .toMatchObject({ t: "judged", result: { text: "hi" } });
+  });
+  it("flags malformed input as bad without burning an attempt", async () => {
+    expect(await evaluateCapture(env, "location", {}, "where", { lat: 999, lng: 0 })).toMatchObject({ t: "bad" });
+    expect(await evaluateCapture(env, "choice", { options: ["a", "b"] }, "which", { index: 5 })).toMatchObject({ t: "bad" });
+    expect(await evaluateCapture(env, "photo", {}, "a photo", {})).toMatchObject({ t: "bad" });
   });
 });
