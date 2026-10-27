@@ -1,6 +1,6 @@
 <p align="center"><img src="public/squint.svg" width="72" alt="Squint logo"></p>
 <h1 align="center">Squint</h1>
-<p align="center">A camera for headless agents. Ask a human's phone for a photo, a location, a choice or a short text, and get typed JSON back.</p>
+<p align="center">Human senses for headless agents. Ask a person's phone for a photo, a location, a choice, a short answer, or a whole checklist of them, and get typed JSON back.</p>
 <p align="center">
   <a href="https://squint.elsisi.workers.dev">Live demo</a> ·
   <a href="#how-it-works">How it works</a> ·
@@ -14,13 +14,13 @@
 </p>
 <p align="center"><img src="docs/images/hero.png" alt="Squint landing page" width="100%"></p>
 
-An agent mints a link that asks its human's phone for one real-world thing. Claude vision checks the photo on the spot (blurry, too dark, wrong thing: the human retakes it right there), and the agent receives **typed JSON, never the image**.
+An agent mints a link that asks its human's phone for something in the real world. Claude vision checks each photo on the spot (blurry, too dark, wrong thing: the human retakes it right there), and the agent receives **typed JSON, never the image**. A `sequence` chains up to six captures behind one link, which is enough to run a vehicle handoff, a property inspection or a delivery proof as a single call.
 
 ## Why
 
 Agents with no upload UI (voice agents, background jobs, swarms, anything that talks to a person through SMS or a phone call) cannot take a picture. Today that means building an upload page and storage, then spending agent turns on "that's blurry, please retake" while every attempt costs about 1.5k image tokens.
 
-With Squint the agent makes one call, hands the URL to the human over whatever channel it already has, and waits. The result is a few dozen tokens of JSON.
+With Squint the agent makes one call, hands the URL to the human over whatever channel it already has, and waits. The result is a few dozen tokens of JSON. The retakes, the vision check and the checklist bookkeeping all happen between the phone and the Worker, outside the agent's context.
 
 ## Use it
 
@@ -127,6 +127,32 @@ Tools: `squint_ask` (returns the link immediately unless `wait_seconds` is set),
 | GET, POST | `/v1/public/asks/:id`, `/v1/public/asks/:id/submit` | API used by the phone page. Never returns the result or token. |
 | ANY | `/mcp` | Remote MCP server. |
 | GET | `/llms.txt`, `/agents.md`, `/openapi.json`, `/healthz` | Agent docs, OpenAPI, liveness. |
+
+## Checklists
+
+One link can walk a human through several captures in order:
+
+```bash
+curl -s https://squint.elsisi.workers.dev/v1/asks -H 'content-type: application/json' -d '{
+  "kind": "sequence",
+  "ask": "Vehicle pickup check-in",
+  "steps": [
+    { "kind": "photo", "ask": "the odometer", "extract": { "km": "number: the reading" } },
+    { "kind": "photo", "ask": "the left side of the car" },
+    { "kind": "location", "ask": "where the car is parked" }
+  ]
+}'
+```
+
+Each step takes the same fields as a single ask and gets its own retake budget. The phone page shows "step 2 of 3", photo steps run through vision, and when the last step lands the agent receives one result per step:
+
+```json
+{ "status": "done", "result": { "steps": [
+  { "kind": "photo", "ask": "the odometer", "result": { "fields": { "km": 48213 }, "confidence": 0.96 } },
+  { "kind": "photo", "ask": "the left side of the car", "result": { "description": "Sedan, no visible damage" } },
+  { "kind": "location", "ask": "where the car is parked", "result": { "lat": 37.7749, "lng": -122.4194, "accuracy_m": 12 } }
+] } }
+```
 
 ## How it works
 
