@@ -211,6 +211,7 @@ footer nav a{color:var(--ink)}
     <nav>
       <a href="#demo">Demo</a>
       <a class="opt" href="#kinds">Kinds</a>
+      <a class="opt" href="#sequences">Sequences</a>
       <a href="#integrate">Integrate</a>
       <a class="opt" href="#safety">Safety</a>
       <a href="/llms.txt">llms.txt</a>
@@ -389,6 +390,43 @@ footer nav a{color:var(--ink)}
         <h3>Text</h3>
         <p>A short typed answer, up to 280 characters, with an optional placeholder hint.</p>
         <pre>{"text":"Leave it with the neighbour"}</pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SEQUENCES -->
+<section id="sequences">
+  <div class="wrap">
+    <h2>One link, a whole <span class="grad">checklist</span></h2>
+    <p class="lede">Real jobs are rarely one photo. A vehicle handoff is an odometer, two sides of the car and where it's parked. An inspection is one room after another. <code>kind:"sequence"</code> chains two to six captures behind a single link: the human walks them in order, each photo is checked on the spot, and your agent gets one typed result per step.</p>
+    <div class="grid2">
+      <div class="card">
+        <h3 style="margin-bottom:12px">What your agent sends</h3>
+        <pre class="code">{"kind": "sequence",
+ "ask": "Vehicle pickup check-in",
+ "steps": [
+   {"kind": "photo", "ask": "the odometer",
+    "extract": {"km": "number: the reading"}},
+   {"kind": "photo", "ask": "the left side of the car"},
+   {"kind": "location", "ask": "where the car is parked"}
+ ]}</pre>
+        <p class="note">Each step takes the same fields as a single ask. The retake budget applies per step.</p>
+      </div>
+      <div class="card">
+        <h3 style="margin-bottom:12px">What comes back</h3>
+        <pre class="code">{"status": "done",
+ "result": {"steps": [
+   {"kind": "photo", "ask": "the odometer",
+    "result": {"fields": {"km": 48213}, "confidence": 0.96}},
+   {"kind": "photo", "ask": "the left side of the car",
+    "result": {"description": "Sedan, no visible damage"}},
+   {"kind": "location", "ask": "where the car is parked",
+    "result": {"lat": 37.7749, "lng": -122.4194,
+               "accuracy_m": 12}}
+ ]},
+ "tokens": {"spared": 3100}}</pre>
+        <p class="note">Handoffs, inspections, delivery proof, equipment audits: one call, one link, every retake handled on the phone.</p>
       </div>
     </div>
   </div>
