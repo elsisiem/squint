@@ -52,6 +52,15 @@ curl -s https://squint.elsisi.workers.dev/v1/asks -H 'content-type: application/
   -d '{"kind":"text","ask":"What name should I put on the reservation?","hint":"e.g. Sam Lee"}'
 ```
 
+### sequence -> one link, several captures in order -> {"steps":[{"kind":"...","ask":"...","result":{...}}, ...]}
+```
+curl -s https://squint.elsisi.workers.dev/v1/asks -H 'content-type: application/json'   -d '{"kind":"sequence","ask":"Vehicle pickup check-in","steps":[
+       {"kind":"photo","ask":"the odometer","extract":{"km":"number: the reading"}},
+       {"kind":"photo","ask":"the left side of the car"},
+       {"kind":"location","ask":"where the car is parked"}]}'
+```
+2-6 steps; each step takes the same kind-specific fields as a single ask; `max_attempts` applies per step; the human walks them in order on one page and `result` arrives when the last step is done.
+
 Optional fields for any kind: `ttl_seconds` (60..3600, default 900), `max_attempts` (1..8, default 5), `callback_url` (https, public host; when the ask is done we POST `{id, kind, status, result, tokens, done_at}` to it, unsigned, so confirm with a GET using your token).
 
 Create response (201):
@@ -97,7 +106,7 @@ JSON `{"error": "...", "message": "..."}`.
 claude mcp add --transport http squint https://squint.elsisi.workers.dev/mcp
 ```
 
-Tools: `squint_ask` (kind, ask, extract, options, hint, ttl_seconds, wait_seconds<=25; returns url + token immediately by default), `squint_wait` (id, token, wait_seconds<=25), `squint_cancel` (id, token).
+Tools: `squint_ask` (kind, ask, extract, options, hint, steps, ttl_seconds, wait_seconds<=25; returns url + token immediately by default), `squint_wait` (id, token, wait_seconds<=25), `squint_cancel` (id, token).
 
 ## Limits
 

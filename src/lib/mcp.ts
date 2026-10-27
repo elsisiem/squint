@@ -9,6 +9,7 @@ const TOOLS = [
     name: "squint_ask",
     description:
       "Ask your human for one real-world thing through their phone: a photo, their location, a choice between options, or a short text answer. " +
+      "For a whole checklist in one link (a vehicle handoff, an inspection, delivery proof), use kind 'sequence' with 2-6 steps; the human walks them in order and you get one typed result per step. " +
       "Use this when you need something physical or personal and you have no upload UI or camera of your own. " +
       "It returns a link (`url`) immediately: give that link to the human through whatever channel you have (chat, email, SMS, terminal; it also has a QR at qr_url). " +
       "When they open it, a vision model checks photos on the spot and makes the human retake bad ones, so you never handle images or retake loops. " +
@@ -18,11 +19,26 @@ const TOOLS = [
     inputSchema: {
       type: "object",
       properties: {
-        kind: { type: "string", enum: ["photo", "location", "choice", "text"], description: "photo -> typed fields + description; location -> {lat,lng,accuracy_m}; choice -> {choice,index}; text -> {text} (<=280 chars)" },
+        kind: { type: "string", enum: ["photo", "location", "choice", "text", "sequence"], description: "photo -> typed fields + description; location -> {lat,lng,accuracy_m}; choice -> {choice,index}; text -> {text} (<=280 chars); sequence -> walks `steps` in order, result is {steps:[{kind,ask,result}]}" },
         ask: { type: "string", description: "Plain-language instruction shown to the human, e.g. 'a clear photo of the water meter'" },
         extract: { type: "object", additionalProperties: { type: "string" }, description: "photo only. Fields to read from the image as {name: 'type: description'}, type is string|number|boolean|date (int/integer = number, bool = boolean; no prefix = string). Fields are required by default; mark optional with '?', e.g. 'string?: serial if printed'. E.g. {\"reading\":\"number: the digits on the meter\"}" },
         options: { type: "array", items: { type: "string" }, minItems: 2, maxItems: 8, description: "choice only. 2-8 short labels" },
         hint: { type: "string", description: "text only. Placeholder shown in the input" },
+        steps: {
+          type: "array", minItems: 2, maxItems: 6,
+          description: "sequence only. The captures to walk through, in order. Each step takes the same kind-specific fields as a single ask. max_attempts applies per step.",
+          items: {
+            type: "object",
+            properties: {
+              kind: { type: "string", enum: ["photo", "location", "choice", "text"] },
+              ask: { type: "string" },
+              extract: { type: "object", additionalProperties: { type: "string" } },
+              options: { type: "array", items: { type: "string" } },
+              hint: { type: "string" },
+            },
+            required: ["kind", "ask"],
+          },
+        },
         ttl_seconds: { type: "integer", minimum: 60, maximum: 3600, description: "How long the link stays valid. Default 900" },
         wait_seconds: { type: "integer", minimum: 0, maximum: 25, description: "Block up to this long for the human to finish and return the final result. Default 0 = return the link immediately (recommended, so you can hand it to the human first)" },
       },

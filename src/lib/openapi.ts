@@ -74,11 +74,24 @@ export const openapi = {
         type: "object",
         required: ["kind", "ask"],
         properties: {
-          kind: { type: "string", enum: ["photo", "location", "choice", "text"] },
-          ask: { type: "string", description: "Plain-language instruction shown to the human, e.g. 'a clear photo of the water meter'" },
+          kind: { type: "string", enum: ["photo", "location", "choice", "text", "sequence"] },
+          ask: { type: "string", description: "Plain-language instruction shown to the human, e.g. 'a clear photo of the water meter'. For sequences, the checklist title" },
           extract: { type: "object", additionalProperties: { type: "string" }, description: "photo: {field: 'type: description'}, type is string|number|boolean|date (int/integer/float = number, bool = boolean, datetime = date as YYYY-MM-DD); no type prefix = string. Fields are required by default (unreadable -> photo rejected); mark optional with '?', e.g. 'string?: serial if printed'" },
           options: { type: "array", items: { type: "string" }, minItems: 2, maxItems: 8, description: "choice: 2-8 short labels" },
           hint: { type: "string", description: "text: placeholder" },
+          steps: {
+            type: "array", minItems: 2, maxItems: 6, description: "sequence: the captures to walk through, in order. max_attempts applies per step",
+            items: {
+              type: "object", required: ["kind", "ask"],
+              properties: {
+                kind: { type: "string", enum: ["photo", "location", "choice", "text"] },
+                ask: { type: "string" },
+                extract: { type: "object", additionalProperties: { type: "string" } },
+                options: { type: "array", items: { type: "string" }, minItems: 2, maxItems: 8 },
+                hint: { type: "string" },
+              },
+            },
+          },
           ttl_seconds: { type: "integer", minimum: 60, maximum: 3600, default: 900 },
           max_attempts: { type: "integer", minimum: 1, maximum: 8, default: 5 },
           callback_url: { type: "string", format: "uri", description: "Optional https webhook (public hosts only) POSTed when the ask finishes" },
@@ -89,15 +102,16 @@ export const openapi = {
         properties: {
           id: { type: "string" },
           status: { type: "string", enum: ["pending", "opened", "done", "expired", "failed"] },
-          kind: { type: "string", enum: ["photo", "location", "choice", "text"] },
+          kind: { type: "string", enum: ["photo", "location", "choice", "text", "sequence"] },
           ask: { type: "string" },
+          steps: { type: "object", description: "Sequences only: {done, total}", properties: { done: { type: "integer" }, total: { type: "integer" } } },
           url: { type: "string", format: "uri", description: "Give this to the human" },
           qr_url: { type: "string", format: "uri" },
           wait_url: { type: "string", format: "uri" },
           attempts: { type: "integer" },
           max_attempts: { type: "integer" },
           attempt_log: { type: "array", items: { type: "object", properties: { n: { type: "integer" }, ok: { type: "boolean" }, issue: { type: ["string", "null"] } } } },
-          result: { oneOf: [{ type: "null" }, ref("PhotoResult"), ref("LocationResult"), ref("ChoiceResult"), ref("TextResult")], description: "Set when status is done" },
+          result: { oneOf: [{ type: "null" }, ref("PhotoResult"), ref("LocationResult"), ref("ChoiceResult"), ref("TextResult"), ref("SequenceResult")], description: "Set when status is done" },
           expires_at: { type: "string", format: "date-time" },
           created_at: { type: "string", format: "date-time" },
           opened_at: { type: ["string", "null"], format: "date-time" },
@@ -107,7 +121,7 @@ export const openapi = {
               { type: "null" },
               {
                 type: "object",
-                description: "Photo asks only. An honest estimate of tokens saved versus receiving each photo yourself and asking for retakes.",
+                description: "Photo and sequence asks. An honest estimate of tokens saved versus receiving each photo yourself and asking for retakes.",
                 properties: { agent_saw: { type: ["integer", "null"] }, raw_image_loop_would_cost: { type: ["integer", "null"] }, spared: { type: ["integer", "null"] }, note: { type: "string" } },
               },
             ],
@@ -127,6 +141,22 @@ export const openapi = {
       LocationResult: { type: "object", properties: { lat: { type: "number" }, lng: { type: "number" }, accuracy_m: { type: "number" } } },
       ChoiceResult: { type: "object", properties: { choice: { type: "string" }, index: { type: "integer" } } },
       TextResult: { type: "object", properties: { text: { type: "string", maxLength: 280 } } },
+      SequenceResult: {
+        type: "object",
+        properties: {
+          steps: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                kind: { type: "string", enum: ["photo", "location", "choice", "text"] },
+                ask: { type: "string" },
+                result: { oneOf: [{ type: "null" }, ref("PhotoResult"), ref("LocationResult"), ref("ChoiceResult"), ref("TextResult")] },
+              },
+            },
+          },
+        },
+      },
     },
   },
 } as const;
