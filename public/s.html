@@ -9,36 +9,33 @@
 <meta name="theme-color" content="#12111d" media="(prefers-color-scheme: dark)">
 <title>Squint</title>
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/theme.css">
 <style>
 :root{
-  --bg:#faf7f2; --card:#fff; --ink:#1b1a2e; --muted:#5d5b73; --line:#e4dfd5;
-  --accent:linear-gradient(135deg,#0e7490,#6d28d9); --focus:#6d28d9;
-  --warn-bg:#fff4d6; --warn-ink:#6b4a00; --warn-line:#f0d98a;
-  --bad:#b42318; --good:#15803d; --lid:#6d6ae8; --ink-svg:#1f1b4d;
+  --muted:var(--mute); --accent:var(--grad); --focus:var(--violet);
+  --warn-bg:var(--warn-bg); --warn-ink:var(--warn-ink); --warn-line:var(--warn-line);
+  --good:var(--ok); --lid:#6d6ae8; --ink-svg:#1f1b4d;
 }
 @media (prefers-color-scheme:dark){
-  :root{
-    --bg:#12111d; --card:#1c1b2d; --ink:#f2f0fa; --muted:#a9a6c0; --line:#33314a;
-    --focus:#a78bfa; --warn-bg:#2d2410; --warn-ink:#f5d98b; --warn-line:#5a4716;
-    --bad:#ff8a80; --good:#6ee7a0;
-  }
+  :root{ --focus:#a78bfa; }
 }
 *{box-sizing:border-box}
 [hidden]{display:none!important}
 html{-webkit-text-size-adjust:100%}
 body{
   margin:0; min-height:100vh; min-height:100dvh; background:var(--bg); color:var(--ink);
-  font:17px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  font:400 17px/1.45 var(--body);
   padding:max(20px,env(safe-area-inset-top)) max(18px,env(safe-area-inset-right)) max(24px,env(safe-area-inset-bottom)) max(18px,env(safe-area-inset-left));
   display:flex; justify-content:center;
 }
 main{width:100%; max-width:440px; display:flex; flex-direction:column; align-items:center; text-align:center; gap:14px}
-.brand{font-size:.8rem; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); font-weight:700; margin:0}
+.brand{font-family:var(--display); font-size:.82rem; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); font-weight:700; margin:0}
 #mascot{width:150px; height:150px; margin:2px 0 -2px; overflow:visible}
 #mascot svg{width:100%; height:100%; overflow:visible; display:block}
-h1{font-size:1.45rem; line-height:1.25; margin:0; font-weight:750; overflow-wrap:anywhere}
+h1{font-family:var(--display); font-size:1.5rem; line-height:1.22; margin:0; font-weight:700; letter-spacing:-.01em; overflow-wrap:anywhere}
 .msg{font-size:1.4rem; line-height:1.3; font-weight:700; margin:0; overflow-wrap:anywhere; min-height:1.2em}
 .msg:empty{display:none}
+.msg:not(.bad):not(.good){font-size:1.02rem;font-weight:500;color:var(--muted)}
 .msg.bad{color:var(--bad)} .msg.good{color:var(--good)}
 .sub{color:var(--muted); font-size:.95rem; margin:0}
 .spin{display:flex; gap:7px; justify-content:center; height:14px}
@@ -49,10 +46,11 @@ h1{font-size:1.45rem; line-height:1.25; margin:0; font-weight:750; overflow-wrap
 .panel{width:100%; display:flex; flex-direction:column; gap:12px}
 .btn{
   appearance:none; -webkit-appearance:none; border:0; cursor:pointer; width:100%; min-height:60px;
-  padding:14px 20px; border-radius:16px; font:inherit; font-size:1.15rem; font-weight:700; color:#fff;
+  padding:14px 20px; border-radius:var(--r-m); font:inherit; font-size:1.15rem; font-weight:700; color:#fff;
   background:var(--accent); display:flex; align-items:center; justify-content:center; gap:10px;
-  -webkit-tap-highlight-color:transparent; transition:transform .12s, filter .12s;
+  -webkit-tap-highlight-color:transparent; transition:transform .12s, filter .12s; box-shadow:var(--shadow-s);
 }
+.btn:hover{transform:none; box-shadow:var(--shadow-s)}
 .btn:active{transform:scale(.98)} .btn:disabled{opacity:.5; cursor:default}
 .btn.alt{background:var(--card); color:var(--ink); border:2px solid var(--line)}
 .btn.opt{background:var(--card); color:var(--ink); border:2px solid var(--line); justify-content:flex-start; text-align:start; overflow-wrap:anywhere; font-weight:650}

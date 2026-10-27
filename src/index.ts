@@ -17,7 +17,7 @@ const err = (c: C, status: number, error: string, message: string) =>
 
 // Phone page may use inline script/style and Google Fonts; nothing else leaves the origin.
 const PAGE_CSP =
-  "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'";
+  "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'";
 
 // CORS + security headers on every response (including ones built from ASSETS).
 app.use("*", async (c, next) => {
