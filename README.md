@@ -1,6 +1,7 @@
 <p align="center"><img src="public/squint.svg" width="72" alt="Squint logo"></p>
 <h1 align="center">Squint</h1>
 <p align="center">Human senses for headless agents. Ask a person's phone for a photo, a location, a choice, a short answer, or a whole checklist of them, and get typed JSON back.</p>
+<p align="center"><b>2nd place, Solana Agent Hackathon, San Francisco, 2026.</b></p>
 <p align="center">
   <a href="https://squint.elsisi.workers.dev">Live demo</a> ·
   <a href="#how-it-works">How it works</a> ·
